@@ -66,21 +66,30 @@ def test_popup_controls(qapp, app):
     assert popup.scene_pill.text() == app.store.config.scenes[0].name
 
 
-def test_popup_glass_paints_in_every_mode(qapp, app):
-    """Repintura parcial do painel (aba de cores) sem erros."""
+def test_popup_repaints_when_only_the_colour_changes(qapp, app):
+    """Trocar só a cor (lâmpada já acesa, mesmo brilho) precisa repintar o painel inteiro: o brilho do
+    vidro muda de cor, e antes só os filhos (lâmpada, número) eram repintados, deixando retângulos."""
     from PySide6.QtCore import QRect
 
-    popup = app.popup
+    svc, popup = app.service, app.popup
+    ids = svc.ids("*")
     popup.show_at(QRect(600, 580, 20, 20))
-    for mode in ("brightness", "temperature", "hue"):
-        popup._set_mode(mode)
-        qapp.processEvents()
-        assert not popup.grab().isNull()
-    popup.bulb.update()  # repintura só da lâmpada: o painel limpa a área antes de pintar
-    qapp.processEvents()
-    key = popup.bulb._key
-    popup.bulb.set_state(*key[:1], popup.bulb.color, key[2])  # mesmo estado: não repinta nem reanima
-    assert popup.bulb._key == key
+    svc.set_power(ids, True)
+    svc.set_color(ids, (255, 0, 0))
+    assert wait(qapp, lambda: svc.state(ids[0]).color == (255, 0, 0))
+    wait(qapp, lambda: False, 0.6)  # deixa as animações terminarem
+    popup._set_mode("hue")
+
+    calls = []
+    popup.update = lambda *a: calls.append(a)  # offscreen não gera eventos de pintura: observa o pedido
+    try:
+        svc.set_color(ids, (0, 0, 255))
+        assert wait(qapp, lambda: svc.state(ids[0]).color == (0, 0, 255))
+        wait(qapp, lambda: False, 0.3)
+    finally:
+        del popup.update
+    assert popup._glow.blue() == 255
+    assert calls  # o painel inteiro foi marcado para repintura
 
 
 def test_sleep_timer(qapp, app):

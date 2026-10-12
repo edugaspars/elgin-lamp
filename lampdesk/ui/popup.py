@@ -252,7 +252,9 @@ class Popup(QWidget):
         on = s.is_on and s.online
         self.power.set_state(on, accent)
         self.bulb.set_state(on, accent, s.brightness)
-        self._glow = accent
+        if accent != self._glow:
+            self._glow = accent
+            self.update()  # o brilho do vidro mudou de cor; sem isso só os filhos repintam (retângulos soltos)
         self._glow_level.to((0.45 + 0.55 * s.brightness / 100) if on else 0)
 
         self.t_temp.setEnabled(s.has_temperature)
@@ -508,14 +510,9 @@ class Popup(QWidget):
         tri.closeSubpath()
         return path.united(tri)
 
-    def paintEvent(self, e):
+    def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        # repinturas parciais (um filho animando) não podem somar vidro translúcido sobre o que já estava
-        # no buffer: limpa a área antes, senão surgem retângulos mais escuros ou furos que mostram a tela
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
-        p.fillRect(e.rect(), Qt.GlobalColor.transparent)
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
         path = self._panel_path()
         p.setBrush(Qt.BrushStyle.NoBrush)
         outside = QPainterPath()

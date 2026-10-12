@@ -184,8 +184,6 @@ class PowerButton(_HoverButton):
         self._on = Fader(self, 0, 260)
 
     def set_state(self, on: bool, accent: QColor):
-        if (on, QColor(accent).rgba()) == (self.on, self.accent.rgba()):
-            return
         self.on, self.accent = on, QColor(accent)
         self._on.to(1 if on else 0)
         self.update()
@@ -521,13 +519,8 @@ class BulbView(QWidget):
         self.color = QColor(255, 190, 110)
         self._on = Fader(self, 0, 320)
         self._level = Fader(self, 1.0, 240)
-        self._key = None
 
     def set_state(self, on: bool, color: QColor, brightness: int):
-        key = (on, QColor(color).rgba(), brightness)
-        if key == self._key:  # o painel reenvia o estado a cada notificação; não repinte à toa
-            return
-        self._key = key
         self.on, self.color = on, QColor(color)
         self._on.to(1 if on else 0)
         self._level.to(0.35 + 0.65 * max(0, min(100, brightness)) / 100)
