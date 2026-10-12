@@ -247,6 +247,15 @@ class Pill(_HoverButton):
         icons.paint(p, "chevron", QRectF(r.right() - 30, r.center().y() - 8, 16, 16), theme.MUTED)
 
 
+def fit_font(text: str, width: float, weight: QFont.Weight, sizes=(14, 13, 12, 11)) -> QFont:
+    """Maior fonte da lista em que o texto cabe na largura, com folga (a menor se nenhuma couber)."""
+    for size in sizes:
+        font = theme.font(size, weight)
+        if QFontMetrics(font).horizontalAdvance(text) <= width - 2:  # folga: no limite exato o Qt elide
+            return font
+    return theme.font(sizes[-1], weight)
+
+
 class Tile(_HoverButton):
     """Card de modo (Brilho, Branco, Cor, Timer); o ativo fica invertido, como no Control Center."""
 
@@ -293,10 +302,11 @@ class Tile(_HoverButton):
         p.setFont(theme.font(11.5))
         p.setPen(muted)
         p.drawText(QRectF(13, r.height() - 42, r.width() - 16, 16), Qt.AlignmentFlag.AlignLeft, self.label)
-        p.setFont(theme.font(13.5, QFont.Weight.DemiBold))
+        avail = r.width() - 26  # mesma margem de 13 px dos dois lados
+        p.setFont(fit_font(self.value, avail, QFont.Weight.DemiBold))
         p.setPen(text)
-        p.drawText(QRectF(13, r.height() - 25, r.width() - 15, 18), Qt.AlignmentFlag.AlignLeft,
-                   p.fontMetrics().elidedText(self.value, Qt.TextElideMode.ElideRight, int(r.width() - 15)))
+        p.drawText(QRectF(13, r.height() - 25, avail, 18), Qt.AlignmentFlag.AlignLeft,
+                   p.fontMetrics().elidedText(self.value, Qt.TextElideMode.ElideRight, int(avail)))
 
 
 class HeaderSelector(_HoverButton):

@@ -92,6 +92,17 @@ def test_popup_repaints_when_only_the_colour_changes(qapp, app):
     assert calls  # o painel inteiro foi marcado para repintura
 
 
+def test_tile_value_fits_inside_the_card(qapp):
+    """"Desligado" no card Timer não pode encostar na borda direita (margem de 13 px dos dois lados)."""
+    from PySide6.QtGui import QFont, QFontMetrics
+    from lampdesk.ui.widgets import fit_font
+
+    avail = 88 - 26  # largura típica do card no painel
+    font = fit_font("Desligado", avail, QFont.Weight.DemiBold)
+    assert QFontMetrics(font).horizontalAdvance("Desligado") <= avail
+    assert fit_font("100%", avail, QFont.Weight.DemiBold).pixelSize() == 14  # texto curto mantém o tamanho
+
+
 def test_sleep_timer(qapp, app):
     svc = app.service
     svc.start_timer("*", svc.ids("*"), 30)
