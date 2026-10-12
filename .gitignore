@@ -1,0 +1,32 @@
+# --- Dados sensíveis: NUNCA versionar ---
+# O app guarda tudo em %APPDATA%\ElginLamp (fora do projeto), mas por garantia:
+*.dat
+.key
+.env
+.env.*
+config.json
+# arquivos gerados pelo "python -m tinytuya wizard" / "scan" (contêm IPs e Local Keys)
+devices.json
+tinytuya.json
+snapshot.json
+tuya-raw.json
+*.log
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# --- Build (PyInstaller) ---
+build/
+dist/
+*.spec
+
+# --- Editores / SO ---
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

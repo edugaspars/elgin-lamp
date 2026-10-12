@@ -1,0 +1,5 @@
+#!/bin/sh
+# Ative com: git config core.hooksPath .githooks
+PY=python3
+command -v "$PY" >/dev/null 2>&1 || PY=python
+exec "$PY" scripts/check_secrets.py
