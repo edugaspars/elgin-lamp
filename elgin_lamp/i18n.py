@@ -68,7 +68,7 @@ STRINGS = {
         "lamp.new": "Nova lâmpada",
         "lamp.edit": "Editar lâmpada",
         "lamp.default_name": "Lâmpada {n}",
-        "lamp.help": "Não sabe onde achar o Device ID e o Local Key? Use \"Importar da nuvem Tuya\" "
+        "lamp.help": "Sem o Local Key? Use \"Não tenho o Local Key\" (login com QR Code no Smart Life) "
                      "ou veja o passo a passo no README.",
         "lamp.missing": "Preencha IP, Device ID e Local Key.",
         "lamp.bad_ip": "IP inválido. Use o formato 192.168.0.10.",
@@ -152,7 +152,27 @@ STRINGS = {
                       "Uma cópia foi guardada e o app começou do zero.",
         "already_running": "O Elgin Lamp já está aberto na bandeja.",
         "no_tray": "A bandeja do sistema não está disponível.",
-        "notify.routine": "Rotina \"{name}\" executada",
+        "btn.smartlife": "Entrar com Smart Life",
+        "lamp.get_key": "Não tenho o Local Key",
+        "smartlife.title": "Entrar com o Smart Life",
+        "smartlife.intro": "Busca o Local Key de todas as lâmpadas da sua conta Smart Life / Tuya Smart, "
+                           "sem conta de desenvolvedor. A sessão é encerrada logo em seguida e nada da "
+                           "conta fica salvo. A lâmpada precisa estar pareada no Smart Life.",
+        "smartlife.where": "Código do usuário: no Smart Life, toque em Eu › ⚙ Configurações › "
+                           "Conta e segurança › Código do usuário.",
+        "smartlife.code": "Código do usuário",
+        "smartlife.generate": "Gerar QR Code",
+        "smartlife.scan": "No Smart Life, abra a aba Eu, toque no ícone de leitor (canto superior direito), "
+                          "escaneie o QR Code e confirme o login no celular.",
+        "smartlife.waiting": "Aguardando a leitura do QR Code…",
+        "smartlife.fetching": "Login feito! Buscando suas lâmpadas…",
+        "smartlife.fetching_lan": "Login feito! Buscando suas lâmpadas e os IPs na rede (cerca de 20 s)…",
+        "smartlife.expired": "O QR Code expirou. Gere outro.",
+        "smartlife.no_code": "Informe o código do usuário.",
+        "smartlife.missing_dep": "Componente de login não instalado (tuya-device-sharing-sdk).",
+        "smartlife.not_found": "A lâmpada com ID {id} não está nessa conta. Ela já foi pareada no Smart Life? "
+                               "(Ao parear de novo, confira o Device ID com \"Buscar na rede\".)",
+        "smartlife.key_filled": "Local Key preenchido! Clique em \"Testar conexão\".",
     },
     "en": {
         "app.tooltip": "Elgin Lamp",
@@ -214,7 +234,7 @@ STRINGS = {
         "lamp.new": "New lamp",
         "lamp.edit": "Edit lamp",
         "lamp.default_name": "Lamp {n}",
-        "lamp.help": "Don't know where to find the Device ID and Local Key? Use \"Import from Tuya cloud\" "
+        "lamp.help": "No Local Key? Use \"I don't have the Local Key\" (QR code sign-in with Smart Life) "
                      "or follow the step-by-step guide in the README.",
         "lamp.missing": "Fill in IP, Device ID and Local Key.",
         "lamp.bad_ip": "Invalid IP. Use the format 192.168.0.10.",
@@ -298,7 +318,26 @@ STRINGS = {
                       "A copy was kept and the app started fresh.",
         "already_running": "Elgin Lamp is already running in the tray.",
         "no_tray": "The system tray is not available.",
-        "notify.routine": "Routine \"{name}\" ran",
+        "btn.smartlife": "Sign in with Smart Life",
+        "lamp.get_key": "I don't have the Local Key",
+        "smartlife.title": "Sign in with Smart Life",
+        "smartlife.intro": "Fetches the Local Key of every lamp in your Smart Life / Tuya Smart account, "
+                           "no developer account needed. The session is closed right after and nothing "
+                           "from the account is saved. The lamp must be paired in Smart Life.",
+        "smartlife.where": "User code: in Smart Life, tap Me › ⚙ Settings › Account and Security › User Code.",
+        "smartlife.code": "User code",
+        "smartlife.generate": "Generate QR code",
+        "smartlife.scan": "In Smart Life, open the Me tab, tap the scanner icon (top right), "
+                          "scan the QR code and confirm the login on your phone.",
+        "smartlife.waiting": "Waiting for the QR code to be scanned…",
+        "smartlife.fetching": "Signed in! Fetching your lamps…",
+        "smartlife.fetching_lan": "Signed in! Fetching your lamps and their IPs on the network (about 20 s)…",
+        "smartlife.expired": "The QR code expired. Generate a new one.",
+        "smartlife.no_code": "Enter the user code.",
+        "smartlife.missing_dep": "Login component not installed (tuya-device-sharing-sdk).",
+        "smartlife.not_found": "The lamp with ID {id} is not in this account. Was it paired in Smart Life? "
+                               "(After re-pairing, check the Device ID with \"Scan network\".)",
+        "smartlife.key_filled": "Local Key filled in! Click \"Test connection\".",
     },
 }
 

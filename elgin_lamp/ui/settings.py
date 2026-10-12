@@ -5,11 +5,12 @@ import ipaddress
 import os
 import subprocess
 import sys
+import time
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTime, QUrl, Signal
-from PySide6.QtGui import QColor, QDesktopServices, QIcon, QPixmap
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTime, QTimer, QUrl, Signal
+from PySide6.QtGui import QColor, QDesktopServices, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QColorDialog, QComboBox,
-                               QCompleter, QDialog, QFormLayout, QGridLayout, QHBoxLayout, QLabel,
+                               QCompleter, QDialog, QFormLayout, QGridLayout, QHBoxLayout, QLabel, QLayout,
                                QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QProgressBar,
                                QPushButton, QRadioButton, QSlider, QSpinBox, QTabWidget, QTimeEdit,
                                QVBoxLayout, QWidget)
@@ -159,12 +160,36 @@ class LampDialog(_Dialog):
                          (tr("lamp.version"), self.version)):
             form.addRow(label, w)
         self.body.addLayout(form)
+        get_key = button(tr("lamp.get_key"), self.fetch_key)
+        get_key.setToolTip(tr("smartlife.title"))
+        self.body.addWidget(get_key, 0, Qt.AlignmentFlag.AlignLeft)
         self.result_label = muted()
         self.body.addWidget(self.result_label)
         self.body.addWidget(muted(tr("lamp.help")))
         self.test_btn = button(tr("btn.test"), self.test)
         self.add_buttons(extra=[self.test_btn])
         self.lamp = lamp
+
+    def fetch_key(self):
+        d = SmartLifeDialog(self, scan_lan=not self.ip.text().strip(), want_id=self.dev.text().strip())
+        d.exec()
+        if not d.found:
+            return
+        dev_id = self.dev.text().strip()
+        match = next((f for f in d.found if f.device_id == dev_id), None)
+        if match is None and not dev_id:
+            chosen = d.value()  # sem ID digitado: usa a lâmpada marcada na lista
+            match = chosen[0] if chosen else None
+        if match is None:
+            self.result_label.setText(tr("smartlife.not_found", id=mask(dev_id)))
+            return
+        self.dev.setText(match.device_id)
+        self.key.setText(match.local_key)
+        if match.ip and not self.ip.text().strip():
+            self.ip.setText(match.ip)
+        if match.version != "auto":
+            self.version.setCurrentIndex(max(0, self.version.findData(match.version)))
+        self.result_label.setText(tr("smartlife.key_filled"))
 
     def _build(self) -> Lamp:
         return Lamp(name=self.name.text().strip() or "Lamp", device_id=self.dev.text().strip(),
@@ -257,10 +282,55 @@ class ScanDialog(_Dialog):
         return self.found[r] if 0 <= r < len(self.found) else None
 
 
-class CloudDialog(_Dialog):
+class _ImportDialog(_Dialog):
+    """Base dos diálogos que trazem várias lâmpadas (com Local Key) de uma vez."""
+
+    def __init__(self, parent, title: str):
+        super().__init__(parent, title)
+        self.setMinimumWidth(520)
+        self.found = []
+
+    def _add_results(self, extra_buttons):
+        self.info = muted()
+        self.bar = QProgressBar()
+        self.bar.setRange(0, 0)
+        self.bar.setTextVisible(False)
+        self.bar.hide()
+        self.list = QListWidget()
+        self.list.hide()
+        self.body.addWidget(self.info)
+        self.body.addWidget(self.bar)
+        self.body.addWidget(self.list)
+        self.add_buttons(tr("cloud.import"), extra=extra_buttons)
+        self.ok.setEnabled(False)
+
+    def _show(self, found):
+        self.bar.hide()
+        self.found = found or []
+        self.info.setText(tr("cloud.result", n=len(self.found)))
+        self.list.clear()
+        self.list.show()
+        for f in self.found:
+            it = QListWidgetItem(f"{f.name}  ·  {f.ip or tr('cloud.no_ip')}")
+            it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            it.setCheckState(Qt.CheckState.Checked if f.ip else Qt.CheckState.Unchecked)
+            if not f.ip:
+                it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEnabled)
+            self.list.addItem(it)
+        self.ok.setEnabled(any(f.ip for f in self.found))
+
+    def _fail(self, err):
+        self.bar.hide()
+        self.info.setText(tr("cloud.error", err=err))
+
+    def value(self):
+        return [f for i, f in enumerate(self.found)
+                if self.list.item(i).checkState() == Qt.CheckState.Checked and f.ip]
+
+
+class CloudDialog(_ImportDialog):
     def __init__(self, parent, hint_device_id=""):
         super().__init__(parent, tr("cloud.title"))
-        self.setMinimumWidth(520)
         self.body.addWidget(muted(tr("cloud.intro")))
         form = QFormLayout()
         self.region = QComboBox()
@@ -274,19 +344,7 @@ class CloudDialog(_Dialog):
             form.addRow(label, w)
         self.body.addLayout(form)
         self.run_btn = button(tr("cloud.run"), self.run)
-        self.info = muted()
-        self.bar = QProgressBar()
-        self.bar.setRange(0, 0)
-        self.bar.setTextVisible(False)
-        self.bar.hide()
-        self.list = QListWidget()
-        self.list.hide()
-        self.body.addWidget(self.info)
-        self.body.addWidget(self.bar)
-        self.body.addWidget(self.list)
-        self.add_buttons(tr("cloud.import"), extra=[self.run_btn])
-        self.ok.setEnabled(False)
-        self.found = []
+        self._add_results([self.run_btn])
 
     def run(self):
         args = (self.region.currentText(), self.key.text().strip(), self.secret.text().strip(),
@@ -301,30 +359,150 @@ class CloudDialog(_Dialog):
         def job():
             cloud = discovery.import_cloud(*args)
             return discovery.merge(cloud, discovery.scan_lan())
-        run_async(job, self._done)
 
-    def _done(self, res, err):
-        self.bar.hide()
-        self.run_btn.setEnabled(True)
-        if err:
-            self.info.setText(tr("cloud.error", err=err))
+        def done(res, err):
+            self.run_btn.setEnabled(True)
+            self._fail(err) if err else self._show(res)
+        run_async(job, done)
+
+
+class QrView(QWidget):
+    """Desenha um QR Code (quadrado branco com módulos pretos)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.matrix = []
+        self.setFixedSize(232, 232)
+
+    def set_data(self, data: str):
+        import qrcode
+        qr = qrcode.QRCode(border=0, error_correction=qrcode.constants.ERROR_CORRECT_M)
+        qr.add_data(data)
+        qr.make(fit=True)
+        self.matrix = qr.get_matrix()
+        self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor("white"))
+        p.drawRoundedRect(self.rect(), 14, 14)
+        if not self.matrix:
             return
-        self.found = res or []
-        self.info.setText(tr("cloud.result", n=len(self.found)))
-        self.list.clear()
-        self.list.show()
-        for f in self.found:
-            it = QListWidgetItem(f"{f.name}  ·  {f.ip or tr('cloud.no_ip')}")
-            it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            it.setCheckState(Qt.CheckState.Checked if f.ip else Qt.CheckState.Unchecked)
-            if not f.ip:
-                it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEnabled)
-            self.list.addItem(it)
-        self.ok.setEnabled(any(f.ip for f in self.found))
+        n = len(self.matrix)
+        cell = (self.width() - 32) // n
+        off = (self.width() - cell * n) // 2
+        p.setBrush(QColor("black"))
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        for y, row in enumerate(self.matrix):
+            for x, on in enumerate(row):
+                if on:
+                    p.drawRect(off + x * cell, off + y * cell, cell, cell)
 
-    def value(self):
-        return [f for i, f in enumerate(self.found)
-                if self.list.item(i).checkState() == Qt.CheckState.Checked and f.ip]
+
+class SmartLifeDialog(_ImportDialog):
+    """Login por QR Code no app Smart Life: traz o Local Key sem conta de desenvolvedor."""
+
+    TIMEOUT_S = 180
+
+    def __init__(self, parent, scan_lan=True, want_id=""):
+        super().__init__(parent, tr("smartlife.title"))
+        self.scan_lan = scan_lan
+        self.want_id = want_id
+        self.body.addWidget(muted(tr("smartlife.intro")))
+        self.body.addWidget(muted(tr("smartlife.where")))
+        form = QFormLayout()
+        self.code = QLineEdit()
+        self.code.setPlaceholderText("Ab1Cd2")
+        form.addRow(tr("smartlife.code"), self.code)
+        self.body.addLayout(form)
+        self.qr = QrView()
+        self.qr.hide()
+        self.qr_hint = muted(tr("smartlife.scan"))
+        self.qr_hint.hide()
+        self.body.addWidget(self.qr, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.body.addWidget(self.qr_hint)
+        self.run_btn = button(tr("smartlife.generate"), self.run)
+        self._add_results([self.run_btn])
+        # a janela acompanha o conteúdo (o QR aparece e some durante o fluxo)
+        self.body.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
+        self.login = None
+        self._polling = False
+        self._started = 0.0
+        self.poll_timer = QTimer(self, interval=2000)
+        self.poll_timer.timeout.connect(self._poll)
+
+    def run(self):
+        code = self.code.text().strip()
+        if not code:
+            self.info.setText(tr("smartlife.no_code"))
+            return
+        try:
+            self.login = discovery.SmartLifeLogin(code)
+        except ImportError:
+            self.info.setText(tr("smartlife.missing_dep"))
+            return
+        self.run_btn.setEnabled(False)
+        self.bar.show()
+        self.info.setText("")
+
+        def done(payload, err):
+            self.bar.hide()
+            if err:
+                self.run_btn.setEnabled(True)
+                self._fail(err)
+                return
+            self.qr.set_data(payload)
+            self.qr.show()
+            self.qr_hint.show()
+            self.info.setText(tr("smartlife.waiting"))
+            self._started = time.monotonic()
+            self.poll_timer.start()
+            self.adjustSize()
+        run_async(self.login.start, done)
+
+    def _poll(self):
+        if self._polling:
+            return
+        if time.monotonic() - self._started > self.TIMEOUT_S:
+            self.poll_timer.stop()
+            self.qr.hide()
+            self.qr_hint.hide()
+            self.run_btn.setEnabled(True)
+            self.info.setText(tr("smartlife.expired"))
+            return
+        self._polling = True
+
+        def done(info, err):
+            self._polling = False
+            if err or not info:
+                return  # ainda não escaneado (ou falha momentânea): tenta de novo
+            self.poll_timer.stop()
+            self.qr.hide()
+            self.qr_hint.hide()
+            self.bar.show()
+            self.info.setText(tr("smartlife.fetching_lan" if self.scan_lan else "smartlife.fetching"))
+            self.adjustSize()
+
+            def job():
+                found = self.login.fetch(info)
+                return discovery.merge(found, discovery.scan_lan()) if self.scan_lan else found
+
+            def fetched(res, err2):
+                self.run_btn.setEnabled(True)
+                self._fail(err2) if err2 else self._show(res)
+            run_async(job, fetched)
+        run_async(self.login.poll, done)
+
+    def _show(self, found):
+        super()._show(found)
+        if self.want_id and any(f.device_id == self.want_id for f in self.found):
+            self.accept()  # aberto pelo cadastro de uma lâmpada: achou, volta direto
+
+    def done(self, r):
+        self.poll_timer.stop()
+        super().done(r)
 
 
 class LampsTab(QWidget):
@@ -342,6 +520,7 @@ class LampsTab(QWidget):
         row.addWidget(button(tr("btn.remove"), self.remove, danger=True))
         row.addStretch(1)
         row.addWidget(button(tr("btn.scan"), self.scan))
+        row.addWidget(button(tr("btn.smartlife"), self.smartlife))
         row.addWidget(button(tr("btn.cloud"), self.cloud))
         v.addLayout(row)
         v.addWidget(muted(tr("lamp.help")))
@@ -403,11 +582,20 @@ class LampsTab(QWidget):
             else:
                 self.add(found)
 
+    def smartlife(self):
+        d = SmartLifeDialog(self)
+        if d.exec():
+            self._import(d.value())
+
     def cloud(self):
         hint = self.cfg.lamps[0].device_id if self.cfg.lamps else ""
         d = CloudDialog(self, hint)
         if d.exec():
-            for f in d.value():
+            self._import(d.value())
+
+    def _import(self, found):
+        if found:
+            for f in found:
                 existing = next((l for l in self.cfg.lamps if l.device_id == f.device_id), None)
                 if existing:
                     existing.ip, existing.local_key = f.ip, f.local_key

@@ -47,7 +47,7 @@ jobs:
         run: >
           pyinstaller --noconfirm --clean --onefile --windowed
           --name ElginLamp --icon build/icon.ico --paths .
-          --collect-submodules tinytuya
+          --collect-submodules tinytuya --collect-submodules tuya_sharing
           --exclude-module tkinter --exclude-module PySide6.QtWebEngineCore
           --exclude-module PySide6.QtQuick --exclude-module PySide6.Qt3DCore
           elgin_lamp/__main__.py

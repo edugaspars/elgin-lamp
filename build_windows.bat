@@ -18,6 +18,7 @@ pyinstaller --noconfirm --clean --onefile --windowed ^
     --icon build\icon.ico ^
     --paths . ^
     --collect-submodules tinytuya ^
+    --collect-submodules tuya_sharing ^
     --exclude-module tkinter ^
     --exclude-module PySide6.QtWebEngineCore ^
     --exclude-module PySide6.QtQuick ^

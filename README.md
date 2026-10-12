@@ -18,7 +18,7 @@ As lâmpadas Wi-Fi da Elgin usam a plataforma **Tuya** (a mesma do app Smart Lif
 - **Clique do meio** no ícone: liga/desliga todas.
 - **Iniciar com o Windows** (opção nas configurações).
 - **Português e inglês**.
-- **Busca na rede** (descobre IP e protocolo) e **importação da nuvem Tuya** (descobre os Local Keys).
+- **Busca na rede** (descobre IP e protocolo) e **login com QR Code no Smart Life** (descobre os Local Keys, sem conta de desenvolvedor).
 
 ## Segurança: seu IP e suas chaves não vão para o projeto
 
@@ -76,7 +76,7 @@ Para testar a interface **sem lâmpada** (lâmpadas simuladas): `python -m elgin
 1. Abra o app. Ele aparece na bandeja, perto do relógio (se não aparecer, procure na setinha **^** de ícones ocultos e arraste para a barra).
 2. Clique em **Adicionar lâmpada** e preencha:
    - **IP local**, por exemplo `192.168.0.10`. Use **Buscar na rede** para descobrir.
-   - **Device ID** e **Local Key**: veja a seção abaixo.
+   - **Device ID** e **Local Key**: sem o Local Key? Clique em **Não tenho o Local Key** (veja a seção abaixo).
    - **Protocolo**: deixe em **Automático**.
 3. Clique em **Testar conexão** e depois em **Salvar**.
 
@@ -84,26 +84,50 @@ Para testar a interface **sem lâmpada** (lâmpadas simuladas): `python -m elgin
 
 ## Como obter o Device ID e o Local Key
 
-O Local Key é gerado quando a lâmpada é pareada e fica guardado na nuvem Tuya. Você precisa buscá-lo **uma vez**. Depois disso, o controle é 100% local.
+O Local Key é gerado quando a lâmpada é pareada e fica guardado na nuvem Tuya. Sem ele não há controle local, porque a lâmpada só aceita comandos criptografados com essa chave. Você precisa buscá-lo **uma vez**. Depois disso, o controle é 100% local.
 
-1. **Pareie a lâmpada no app Smart Life** (ou Tuya Smart). Se ela estiver no app da Elgin, tente o passo 4 com essa conta; se não funcionar, remova a lâmpada do app da Elgin e pareie no Smart Life (continua funcionando com Alexa/Google).
-2. Crie uma conta em **[iot.tuya.com](https://iot.tuya.com)**. O tipo de conta pode ser pessoal ("Skip" no formulário da empresa).
-3. Vá em **Cloud › Development › Create Cloud Project**:
+### Passo 0: a lâmpada precisa estar no app Smart Life
+
+Se ela está no **app da Elgin**, mova-a para o **Smart Life** (cerca de 10 minutos):
+
+1. Instale o **Smart Life** e crie uma conta.
+2. No app da Elgin, abra a lâmpada, toque no lápis/engrenagem e escolha **Remover dispositivo**.
+3. Ligue e desligue a lâmpada no interruptor 3 vezes, até ela **piscar rápido**.
+4. No Smart Life, toque em **+ › Adicionar dispositivo**. O celular precisa estar no **Wi-Fi 2,4 GHz**.
+5. **Alexa**: em **Skills**, ative a skill **Smart Life** e peça "Alexa, descobrir dispositivos". Apague a lâmpada antiga (sem resposta) e refaça as rotinas que usavam essa lâmpada.
+
+### Jeito fácil: login com QR Code (sem conta de desenvolvedor)
+
+1. No Smart Life, copie seu **Código do usuário** em **Eu › ⚙ Configurações › Conta e segurança › Código do usuário**.
+2. No Elgin Lamp, há dois caminhos:
+   - Na tela da lâmpada, clique em **Não tenho o Local Key**.
+   - Ou vá em **Configurações › Lâmpadas › Entrar com Smart Life** para importar todas de uma vez.
+3. Cole o código e clique em **Gerar QR Code**.
+4. No Smart Life, abra a aba **Eu**, toque no **ícone de leitor** (canto superior direito), escaneie e **confirme o login** no celular.
+5. O app preenche o Local Key (e o IP, buscando na rede). Clique em **Testar conexão** e depois em **Salvar**.
+
+A sessão é encerrada logo depois e nada da sua conta é salvo.
+
+> Esse login usa o mesmo mecanismo da integração oficial da Tuya no **Home Assistant** (biblioteca `tuya-device-sharing-sdk`). Ele não é um acesso "oficial" para este app, e a Tuya pode desativá-lo no futuro. Se isso acontecer, use o caminho abaixo.
+
+### Alternativa: plataforma de desenvolvedor da Tuya
+
+1. Crie uma conta em **[iot.tuya.com](https://iot.tuya.com)**. O tipo de conta pode ser pessoal ("Skip" no formulário da empresa).
+2. Vá em **Cloud › Development › Create Cloud Project**:
    - *Industry*: Smart Home. *Development Method*: Smart Home.
    - *Data Center*: **Western America** (padrão para contas do Brasil). Se não achar as lâmpadas, tente outro.
    - Aceite os serviços sugeridos (precisa ter **IoT Core**).
-4. No projeto, abra **Devices › Link App Account › Add App Account**. Vai aparecer um QR Code: no Smart Life, vá em **Eu/Perfil › ícone de leitor** (canto superior) e escaneie.
-5. Na aba **Overview** do projeto, copie o **Access ID/Client ID** e o **Access Secret/Client Secret**.
-6. No Elgin Lamp, vá em **Configurações › Lâmpadas › Importar da nuvem Tuya**:
-   - Região: `us` (Western America). Use `eu` para Central Europe, e assim por diante.
+3. No projeto, abra **Devices › Link App Account › Add App Account** e escaneie o QR Code com o Smart Life (**Eu › ícone de leitor**).
+4. Na aba **Overview**, copie o **Access ID/Client ID** e o **Access Secret/Client Secret**.
+5. No Elgin Lamp, vá em **Configurações › Lâmpadas › Importar da nuvem Tuya**:
+   - Região: `us` (Western America).
    - Cole o Access ID e o Secret.
-   - Informe o Device ID de qualquer lâmpada (aparece em *Devices* no site da Tuya, ou no Smart Life em *lâmpada › ✎ › Informações do dispositivo › ID virtual*).
-   - O app busca os nomes e os Local Keys e encontra os IPs na rede. Marque as lâmpadas e importe.
+   - Informe o Device ID de qualquer lâmpada.
+   - Marque as lâmpadas e importe.
 
 As credenciais da nuvem **não são salvas**: só os dados das lâmpadas, criptografados.
 
-> **Atenção:** se você **parear a lâmpada de novo**, o Local Key muda. Basta importar outra vez.
-> O plano gratuito do IoT Core expira depois de alguns meses, mas só é necessário para buscar as chaves, não para o uso diário.
+> **Atenção:** se você **parear a lâmpada de novo**, o Local Key muda. Basta buscar outra vez.
 
 **Alternativa via terminal:** `python -m tinytuya wizard`, rodado numa pasta **fora** do projeto, gera um `devices.json` com tudo. Copie os valores para o app e apague o arquivo.
 
@@ -153,7 +177,7 @@ elgin_lamp/
   storage.py      modelo de dados + arquivo criptografado
   crypto.py       DPAPI (Windows) / Fernet + keyring (Linux)
   scheduler.py    rotinas, nascer/pôr do sol (astral)
-  discovery.py    busca na rede + importação da nuvem Tuya
+  discovery.py    busca na rede, login Smart Life (QR) e nuvem Tuya
   geo.py          cidades offline + GPS do Windows
   autostart.py    iniciar com o sistema
   i18n.py         português/inglês
