@@ -2,19 +2,22 @@
 
 import time
 
-from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import (QEasingCurve, QEvent, QParallelAnimationGroup, QPoint, QPointF, QPropertyAnimation, QRect,
+                            QRectF, Qt, QTimer, Signal)
 from PySide6.QtGui import QAction, QActionGroup, QColor, QCursor, QFont, QGuiApplication, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (QApplication, QColorDialog, QHBoxLayout, QLabel, QMenu, QPushButton, QSizePolicy, QStackedWidget,
                                QVBoxLayout, QWidget)
 
 from ..i18n import tr
 from ..lamp import LampState, display_rgb, rgb_from_hue
-from . import icons, theme
-from .widgets import BigSlider, BulbView, CircleButton, HeaderSelector, IconButton, Pill, PowerButton, Tile
+from . import glass, icons, theme
+from .tray import style_menu
+from .widgets import BigSlider, BulbView, CircleButton, Fader, HeaderSelector, IconButton, Pill, PowerButton, Tile
 
 WIDTH = 400
-SHADOW = 16
+SHADOW = 22
 ARROW = 10
+SLIDE = 10  # deslocamento da animação de abertura
 
 
 def temp_label(pct: int) -> str:
@@ -45,17 +48,28 @@ class Popup(QWidget):
         self._arrow_x = WIDTH / 2
         self._hidden_at = 0.0
         self._suffix = ""
+        self._backdrop = None
+        self._glow = QColor(255, 190, 110)
+        self._glow_level = Fader(self, 0, 420)
 
         self.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint |
                             Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.NoDropShadowWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setFixedWidth(WIDTH + 2 * SHADOW)
-        self.setStyleSheet(theme.POPUP_QSS)
+        self.setStyleSheet(theme.popup_qss())
 
         self._send_timer = QTimer(self, singleShot=True, interval=60)
         self._send_timer.timeout.connect(self._send_slider)
         self._tick = QTimer(self, interval=1000)
         self._tick.timeout.connect(self._update_timer_tile)
+
+        self._opening = QParallelAnimationGroup(self)
+        self._fade = QPropertyAnimation(self, b"windowOpacity", self)
+        self._slide = QPropertyAnimation(self, b"pos", self)
+        for a in (self._fade, self._slide):
+            a.setDuration(240)
+            a.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._opening.addAnimation(a)
 
         self._build()
         # métodos (e não lambdas): o Qt desconecta sozinho quando o painel é destruído
@@ -98,9 +112,9 @@ class Popup(QWidget):
         line = QHBoxLayout()
         line.setSpacing(4)
         self.big = QLabel("—")
-        self.big.setFont(theme.font(58, QFont.Weight.DemiBold))
+        self.big.setFont(theme.font(60, QFont.Weight.DemiBold, tracking=-3))
         self.unit = QLabel("%")
-        self.unit.setFont(theme.font(24, QFont.Weight.Light))
+        self.unit.setFont(theme.font(24, QFont.Weight.Normal))
         self.unit.setStyleSheet(f"color: {theme.css(theme.MUTED)};")
         line.addWidget(self.big, 0, Qt.AlignmentFlag.AlignBottom)
         line.addWidget(self.unit, 0, Qt.AlignmentFlag.AlignBottom)
@@ -238,6 +252,8 @@ class Popup(QWidget):
         on = s.is_on and s.online
         self.power.set_state(on, accent)
         self.bulb.set_state(on, accent, s.brightness)
+        self._glow = accent
+        self._glow_level.to((0.45 + 0.55 * s.brightness / 100) if on else 0)
 
         self.t_temp.setEnabled(s.has_temperature)
         self.t_color.setEnabled(s.has_colour)
@@ -262,7 +278,7 @@ class Popup(QWidget):
         self.t_bright.set_value(f"{s.brightness}%")
         self.t_temp.set_value(temp_label(s.temperature) if s.mode == "white" else "—")
         self.t_color.set_value(QColor(*s.color).name().upper() if s.mode == "colour" else "—",
-                               QColor(*s.color) if s.mode == "colour" else QColor(theme.DIM))
+                               QColor(*s.color) if s.mode == "colour" else theme.DIM)
         for t, mode in ((self.t_bright, "brightness"), (self.t_temp, "temperature"), (self.t_color, "hue")):
             t.set_active(self.slider_mode == mode)
         self._update_timer_tile()
@@ -346,8 +362,7 @@ class Popup(QWidget):
 
     def _menu(self):
         m = QMenu(self)
-        m.setWindowFlags(m.windowFlags() | Qt.WindowType.NoDropShadowWindowHint)
-        m.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        style_menu(m)
         return m
 
     def _choose_lamp(self):
@@ -431,14 +446,26 @@ class Popup(QWidget):
             y = min(avail.bottom(), anchor.top()) - h - 2 + SHADOW
         y = max(avail.top() - SHADOW, min(y, avail.bottom() - h + SHADOW))
         self._arrow_x = max(SHADOW + 36, min(anchor.center().x() - x, w - SHADOW - 36))
-        self.move(x, y)
+        # o fundo é capturado antes de mostrar (senão o próprio painel sai na foto)
+        self._backdrop = glass.grab_backdrop(QRect(x, y, w, h)) if theme.TRANSPARENCY else None
+        start = QPoint(x, y + (-SLIDE if self._arrow_up else SLIDE))
+        self._opening.stop()
+        self._fade.setStartValue(0.0)
+        self._fade.setEndValue(1.0)
+        self._slide.setStartValue(start)
+        self._slide.setEndValue(QPoint(x, y))
+        self.setWindowOpacity(0.0)
+        self.move(start)
         self.show()
         self.raise_()
         self.activateWindow()
+        self._opening.start()
         self.service.refresh(self.ids())
         self._tick.start()
 
     def hideEvent(self, e):
+        self._opening.stop()
+        self.setWindowOpacity(1.0)
         self._hidden_at = time.monotonic()
         self._tick.stop()
         super().hideEvent(e)
@@ -486,10 +513,17 @@ class Popup(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         path = self._panel_path()
         p.setBrush(Qt.BrushStyle.NoBrush)
-        for i in range(SHADOW, 0, -2):  # sombra suave
-            p.setPen(QPen(QColor(0, 0, 0, int(36 * (1 - i / SHADOW) ** 2)), i * 2))
-            p.drawPath(path)
-        p.setPen(QPen(theme.BORDER, 1))
-        p.setBrush(theme.BG)
-        p.drawPath(path)
+        outside = QPainterPath()
+        outside.addRect(QRectF(self.rect()))
+        p.save()
+        p.setClipPath(outside.subtracted(path))  # o vidro é translúcido: a sombra não pode vazar por baixo
+        shadow = theme.SHADOW
+        for i in range(SHADOW, 0, -2):  # sombra difusa, mais forte embaixo
+            c = QColor(shadow)
+            c.setAlphaF(shadow.alphaF() * (1 - i / SHADOW) ** 3)
+            p.setPen(QPen(c, i * 2))
+            p.drawPath(path.translated(0, 5))
+        p.restore()
+        center = QPointF(self.bulb.mapTo(self, QPoint(self.bulb.width() // 2, 54)))
+        glass.paint_panel(p, path, self._backdrop, QRectF(self.rect()), self._glow, self._glow_level.value, center)
         p.end()

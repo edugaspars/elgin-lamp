@@ -44,6 +44,8 @@ class ElginLampApp:
             self.store.load()
         cfg = self.store.config
         set_language(cfg.settings.language)
+        from .ui import theme
+        theme.apply(cfg.settings.theme, not cfg.settings.reduce_transparency)
         if demo and not cfg.lamps:
             cfg.lamps = [Lamp("Sala", "demo-1", "192.0.2.10", "0" * 16),
                          Lamp("Quarto", "demo-2", "192.0.2.11", "0" * 16),
@@ -67,12 +69,16 @@ class ElginLampApp:
                                                                  QSystemTrayIcon.MessageIcon.Warning))
 
     # ------------------------------------------------------------ interface ---
-    def _build_ui(self):
+    def _build_popup(self):
         from .ui.popup import Popup
-        from .ui.tray import Tray
 
         self.popup = Popup(self.store, self.service)
         self.popup.openSettings.connect(self.open_settings)
+
+    def _build_ui(self):
+        from .ui.tray import Tray
+
+        self._build_popup()
         self.tray = Tray(self)
         self.tray.show()
         if not self.store.config.lamps:  # primeiro uso: mostra o painel vazio
@@ -105,7 +111,21 @@ class ElginLampApp:
             self.settings_window = SettingsWindow(self.store, self.service)
             self.settings_window.configChanged.connect(self._config_changed)
             self.settings_window.languageChanged.connect(lambda: QTimer.singleShot(0, self.rebuild_ui))
+            self.settings_window.themeChanged.connect(self.apply_theme)
         self.settings_window.show_tab(tab)
+
+    def apply_theme(self):
+        """Troca claro/escuro sem fechar as configurações."""
+        from .ui import theme
+
+        s = self.store.config.settings
+        theme.apply(s.theme, not s.reduce_transparency)
+        self.popup.hide()
+        self.popup.deleteLater()
+        self._build_popup()  # o painel é barato de recriar e fica sempre fechado aqui
+        self.tray.restyle()
+        if self.settings_window:
+            self.settings_window.restyle()
 
     def _config_changed(self):
         self.service.reload()

@@ -23,6 +23,18 @@ def test_config_file_never_contains_plaintext(tmp_path):
         assert secret not in raw
 
 
+def test_appearance_settings(tmp_path):
+    store = Store(tmp_path / "config.dat")
+    assert store.config.settings.theme == "dark"  # padrão
+    store.config.settings.theme = "light"
+    store.config.settings.reduce_transparency = True
+    store.save()
+    loaded = Store(tmp_path / "config.dat").load()
+    assert loaded.settings.theme == "light"
+    assert loaded.settings.reduce_transparency is True
+    assert Config.from_dict({"settings": {"theme": "neon"}}).settings.theme == "dark"
+
+
 def test_store_roundtrip(tmp_path):
     store = Store(tmp_path / "config.dat")
     store.config.lamps.append(Lamp("Sala", "id1", "192.168.0.10", "k" * 16, version="3.3"))

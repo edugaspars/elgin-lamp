@@ -11,8 +11,8 @@
 ![Plataforma](https://img.shields.io/badge/plataforma-Windows%20%7C%20Linux-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
-<img src="docs/screenshot.png" width="360" alt="Painel do Elgin Lamp com a lâmpada em branco quente">
-<img src="docs/screenshot-color.png" width="360" alt="Painel do Elgin Lamp no modo cor">
+<img src="docs/screenshot.png" width="360" alt="Painel do Elgin Lamp no tema escuro, com a lâmpada em branco quente">
+<img src="docs/screenshot-color.png" width="360" alt="Painel do Elgin Lamp no tema claro, no modo cor">
 
 </div>
 
@@ -41,6 +41,7 @@ O **Elgin Lamp** coloca suas lâmpadas a **um clique**, ao lado do relógio do W
 | ⚡ **Tempo real** | Os comandos chegam à lâmpada em milissegundos. Mudanças feitas pela Alexa, pelo app ou pelo interruptor aparecem no painel na hora. |
 | 🎛️ **Controle completo** | Liga/desliga, brilho, temperatura do branco (quente ↔ frio) e cor (RGB). |
 | 💡 **Várias lâmpadas** | Controle cada lâmpada ou todas de uma vez. |
+| 🫧 **Visual de vidro** | Temas escuro e claro, com um painel de vidro fosco que desfoca o que está atrás e brilha na cor da lâmpada. Fundo Mica no Windows 11 e opção *Reduzir transparência*. |
 | 🎬 **Cenas** | Leitura, Relaxar, Foco, Noite, Cinema… e as suas. |
 | ⏰ **Rotinas** | Por horário e dia da semana ou pelo **nascer/pôr do sol**, com deslocamento em minutos. |
 | 🌙 **Timer** | "Desligar em 30 minutos". |

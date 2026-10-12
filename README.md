@@ -11,8 +11,8 @@
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
-<img src="docs/screenshot-en.png" width="360" alt="Elgin Lamp panel with the bulb in warm white">
-<img src="docs/screenshot-color-en.png" width="360" alt="Elgin Lamp panel in color mode">
+<img src="docs/screenshot-en.png" width="360" alt="Elgin Lamp panel, dark theme, bulb in warm white">
+<img src="docs/screenshot-color-en.png" width="360" alt="Elgin Lamp panel, light theme, color mode">
 
 </div>
 
@@ -41,6 +41,7 @@ Smart bulbs are great until you need them **while you're at your computer**. Gra
 | ⚡ **Real time** | Commands reach the bulb in milliseconds. Changes made through Alexa, the phone app or the wall switch show up in the panel instantly. |
 | 🎛️ **Full control** | Power, brightness, white temperature (warm ↔ cool) and color (RGB). |
 | 💡 **Multiple bulbs** | Control each bulb individually or all of them at once. |
+| 🫧 **Glass look** | Dark and light themes with a frosted-glass panel that blurs what's behind it and glows in the color of the bulb. Mica background on Windows 11, plus a *Reduce transparency* option. |
 | 🎬 **Scenes** | Reading, Relax, Focus, Night, Movie… plus your own. |
 | ⏰ **Routines** | By time and weekday, or at **sunrise/sunset** with a minute offset. |
 | 🌙 **Sleep timer** | "Turn off in 30 minutes". |

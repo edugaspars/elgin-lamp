@@ -34,13 +34,21 @@ def tray_icon(on: bool) -> QIcon:
     return icon
 
 
+def style_menu(menu: QMenu) -> None:
+    """Menu arredondado no tema atual (o fundo translúcido deixa os cantos redondos)."""
+    menu.setWindowFlags(menu.windowFlags() | Qt.WindowType.FramelessWindowHint |
+                        Qt.WindowType.NoDropShadowWindowHint)
+    menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+    menu.setStyleSheet(theme.dialog_qss())
+
+
 class Tray(QSystemTrayIcon):
     def __init__(self, app):
         super().__init__(tray_icon(False))
         self.app = app
         self.setToolTip(tr("app.tooltip"))
         self.menu = QMenu()
-        self.menu.setStyleSheet(theme.DIALOG_QSS)
+        style_menu(self.menu)
         self.menu.aboutToShow.connect(self.rebuild)
         self.setContextMenu(self.menu)
         self.activated.connect(self._activated)
@@ -51,6 +59,9 @@ class Tray(QSystemTrayIcon):
             self.app.popup.toggle_at(self.geometry())
         elif reason == QSystemTrayIcon.ActivationReason.MiddleClick:
             self.app.service.toggle(self.app.service.ids("*"))
+
+    def restyle(self):
+        style_menu(self.menu)
 
     def update_state(self):
         svc = self.app.service
@@ -79,7 +90,7 @@ class Tray(QSystemTrayIcon):
             m.addAction(tr("tray.all_off")).triggered.connect(lambda: svc.set_power(svc.ids("*"), False))
             if cfg.scenes:
                 sub = m.addMenu(tr("scenes"))
-                sub.setStyleSheet(theme.DIALOG_QSS)
+                style_menu(sub)
                 for sc in cfg.scenes:
                     sub.addAction(sc.name).triggered.connect(
                         lambda _=False, s=sc: svc.apply_scene(svc.ids("*"), s))
