@@ -14,6 +14,7 @@ As lâmpadas Wi-Fi da Elgin usam a plataforma **Tuya** (a mesma do app Smart Lif
   - **Cenas** prontas (Leitura, Relaxar, Foco, Noite, Cinema) e personalizáveis.
   - **Timer**: "desligar em 15/30/60/120 min".
 - **Rotinas**: horário fixo com dias da semana, **nascer/pôr do sol** com deslocamento em minutos, e as ações ligar, desligar ou aplicar cena.
+- **Tempo real**: o app mantém uma conexão aberta com cada lâmpada. Os comandos chegam em milissegundos, e mudanças feitas pela Alexa, pelo app ou pelo interruptor aparecem no painel na hora.
 - **Menu do clique direito**: liga/desliga cada lâmpada, liga/desliga todas e aplica cenas.
 - **Clique do meio** no ícone: liga/desliga todas.
 - **Iniciar com o Windows** (opção nas configurações).
@@ -161,7 +162,8 @@ python -m elgin_lamp
 | "Sem conexão" | O PC precisa estar na mesma rede da lâmpada. Confira o IP (**Buscar na rede**). |
 | "Buscar na rede" não acha nada | Permita o app no **Firewall do Windows** em redes **privadas** (a busca escuta as portas UDP 6666, 6667 e 7000). Verifique se a rede do Windows está como "Privada". |
 | Conecta mas não obedece / erro de chave | O Local Key mudou (a lâmpada foi pareada de novo): importe outra vez. Confira também o protocolo (3.3, 3.4 ou 3.5). |
-| Funciona às vezes | Lâmpadas Tuya aceitam poucas conexões locais simultâneas. Feche outras integrações locais (Home Assistant/LocalTuya) para testar. |
+| Funciona às vezes | Lâmpadas Tuya aceitam poucas conexões locais simultâneas (muitas só uma), e o app mantém uma aberta. Feche outras integrações locais (Home Assistant/LocalTuya) para testar. |
+| A linha de comando não conecta | Mesmo motivo: com o app aberto, a conexão local da lâmpada pode já estar em uso. Feche o app ou use os atalhos do próprio app. |
 | Rotina não rodou | As rotinas rodam com o app aberto. Ative **Iniciar com o sistema**. Se o PC estava em suspensão, a rotina ainda roda até 10 min depois do horário. |
 | Configuração "não pôde ser lida" | O arquivo foi criado em outro usuário/PC (o DPAPI não abre). Uma cópia foi guardada e o app começou do zero. |
 

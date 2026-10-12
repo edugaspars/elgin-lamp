@@ -52,7 +52,7 @@ class Popup(QWidget):
         self.setFixedWidth(WIDTH + 2 * SHADOW)
         self.setStyleSheet(theme.POPUP_QSS)
 
-        self._send_timer = QTimer(self, singleShot=True, interval=140)
+        self._send_timer = QTimer(self, singleShot=True, interval=60)
         self._send_timer.timeout.connect(self._send_slider)
         self._tick = QTimer(self, interval=1000)
         self._tick.timeout.connect(self._update_timer_tile)

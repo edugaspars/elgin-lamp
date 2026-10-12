@@ -134,7 +134,8 @@ class _Dialog(QDialog):
 
 # ------------------------------------------------------------- lâmpadas ---
 class LampDialog(_Dialog):
-    def __init__(self, parent, lamp: Lamp = None, prefill: discovery.Found = None, demo=False, count=0):
+    def __init__(self, parent, lamp: Lamp = None, prefill: discovery.Found = None, demo=False, count=0,
+                 live=None):
         super().__init__(parent, tr("lamp.edit") if lamp else tr("lamp.new"))
         self.demo = demo
         form = QFormLayout()
@@ -169,6 +170,7 @@ class LampDialog(_Dialog):
         self.test_btn = button(tr("btn.test"), self.test)
         self.add_buttons(extra=[self.test_btn])
         self.lamp = lamp
+        self.live = live  # (LampState, versão) da conexão ao vivo, se a lâmpada já existe
 
     def fetch_key(self):
         d = SmartLifeDialog(self, scan_lan=not self.ip.text().strip(), want_id=self.dev.text().strip())
@@ -211,9 +213,15 @@ class LampDialog(_Dialog):
         if err:
             self.result_label.setText(err)
             return
+        new = self._build()
+        if self.lamp and self.live and self.live[0].online and \
+                (new.ip, new.device_id, new.local_key) == (self.lamp.ip, self.lamp.device_id, self.lamp.local_key):
+            # muitas lâmpadas só aceitam uma conexão local: usa a que o app já mantém aberta
+            self.result_label.setText(tr("test.ok", v=self.live[1] or self.lamp.version))
+            return
         self.result_label.setText(tr("test.running"))
         self.test_btn.setEnabled(False)
-        bulb = (FakeBulb if self.demo else TuyaBulb)(self._build())
+        bulb = (FakeBulb if self.demo else TuyaBulb)(new)
 
         def done(_res, error):
             self.test_btn.setEnabled(True)
@@ -555,7 +563,8 @@ class LampsTab(QWidget):
         lamp = self._selected()
         if not lamp:
             return
-        d = LampDialog(self, lamp=lamp, demo=self.win.service.demo)
+        svc = self.win.service
+        d = LampDialog(self, lamp=lamp, demo=svc.demo, live=(svc.state(lamp.id), svc.version(lamp.id)))
         if d.exec():
             idx = self.cfg.lamps.index(lamp)
             self.cfg.lamps[idx] = d.value()
