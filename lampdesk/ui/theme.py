@@ -26,9 +26,7 @@ _PALETTES = {
         CARD_ACTIVE=QColor(255, 255, 255, 38),
         CARD_BORDER=QColor(255, 255, 255, 22),
         CARD_BORDER_ACTIVE=QColor(255, 255, 255, 64),
-        CARD_RIM=QColor(255, 255, 255, 150),  # borda iluminada do vidro líquido (cantos)
-        CARD_SPEC=QColor(255, 255, 255, 46),  # reflexo especular no topo
-        CARD_SHADE=QColor(0, 0, 0, 52),       # sombra interna embaixo
+        CARD_RIM=QColor(255, 255, 255, 34),
         HOVER=QColor(255, 255, 255, 18),
         TRACK=QColor(255, 255, 255, 16),
         HANDLE=QColor(250, 250, 252),
@@ -64,9 +62,7 @@ _PALETTES = {
         CARD_ACTIVE=QColor(255, 255, 255, 240),
         CARD_BORDER=QColor(0, 0, 0, 16),
         CARD_BORDER_ACTIVE=QColor(0, 0, 0, 34),
-        CARD_RIM=QColor(255, 255, 255, 255),
-        CARD_SPEC=QColor(255, 255, 255, 170),
-        CARD_SHADE=QColor(40, 40, 70, 30),
+        CARD_RIM=QColor(255, 255, 255, 200),
         HOVER=QColor(0, 0, 0, 10),
         TRACK=QColor(0, 0, 0, 14),
         HANDLE=QColor(255, 255, 255),
@@ -128,7 +124,6 @@ TRANSPARENCY = True  # False = "Reduzir transparência" (sem desfoque, sem Mica)
 # preenchidas por apply(); declaradas para leitores e linters
 PANEL = PANEL_SOLID = SHEEN = RIM_TOP = RIM_BOTTOM = BORDER = SHADOW = QColor()
 CARD = CARD_HOVER = CARD_ACTIVE = CARD_BORDER = CARD_BORDER_ACTIVE = CARD_RIM = HOVER = QColor()
-CARD_SPEC = CARD_SHADE = QColor()
 TRACK = HANDLE = HANDLE_SHADOW = TEXT = MUTED = DIM = OK = WARN = ERROR = QColor()
 BULB_OFF_HI = BULB_OFF_LO = BULB_OFF_EDGE = INVERSE = INVERSE_TEXT = INVERSE_MUTED = QColor()
 SEGMENT = SEGMENT_SEL = QColor()

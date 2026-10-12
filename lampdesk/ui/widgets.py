@@ -36,63 +36,24 @@ def _painter(w) -> QPainter:
 
 def paint_glass(p: QPainter, path: QPainterPath, rect: QRectF, fill: QColor, border: QColor = None,
                 rim: QColor = None):
-    """Vidro líquido: corpo translúcido, reflexo especular, sombra interna e borda iluminada.
-
-    A luz vem do canto superior esquerdo: a borda brilha ali e, mais fraca, no canto oposto,
-    como nos controles do iOS. Tudo é translúcido para o fundo desfocado aparecer por baixo.
-    """
-    spec, shade = theme.CARD_SPEC, theme.CARD_SHADE
-    p.save()
-    p.setPen(Qt.PenStyle.NoPen)
-
-    # sombra de contato, só do lado de fora (o corpo é translúcido e não pode escurecer)
-    around = QPainterPath()
-    around.addRect(rect.adjusted(-8, -8, 8, 10))
-    p.setClipPath(around.subtracted(path))
-    for dy, k in ((1.0, 0.55), (3.0, 0.28)):
-        p.setBrush(with_alpha(theme.SHADOW, theme.SHADOW.alphaF() * k))
-        p.drawPath(path.translated(0, dy))
-    p.setClipping(False)
-
+    """Cápsula de vidro: preenchimento translúcido, contorno fino e borda iluminada no topo."""
+    p.setPen(QPen(border or theme.CARD_BORDER, 1))
     p.setBrush(fill)
     p.drawPath(path)
-
-    p.save()
-    p.setClipPath(path)
-    body = QLinearGradient(rect.topLeft(), rect.bottomLeft())  # luz em cima, sombra embaixo
-    body.setColorAt(0, with_alpha(spec, spec.alphaF() * 0.6))
-    body.setColorAt(0.45, with_alpha(spec, 0))
-    body.setColorAt(1, with_alpha(shade, shade.alphaF() * 0.7))
-    p.setBrush(QBrush(body))
-    p.drawPath(path)
-    glint = QRadialGradient(QPointF(rect.left() + rect.width() * 0.22, rect.top()), min(rect.width(), rect.height()) * 1.15)
-    glint.setColorAt(0, spec)
-    glint.setColorAt(0.5, with_alpha(spec, spec.alphaF() * 0.18))
-    glint.setColorAt(1, with_alpha(spec, 0))
-    p.setBrush(QBrush(glint))
-    p.drawPath(path)
-    p.setBrush(Qt.BrushStyle.NoBrush)  # brilho de refração rente à borda
-    p.setPen(QPen(with_alpha(spec, spec.alphaF() * 0.4), 3))
-    p.drawPath(path)
-    p.restore()
-
-    p.setBrush(Qt.BrushStyle.NoBrush)
-    p.setPen(QPen(border or theme.CARD_BORDER, 1))
-    p.drawPath(path)
-
     rim = rim or theme.CARD_RIM
-    g = QLinearGradient(rect.topLeft(), rect.bottomRight())
+    g = QLinearGradient(rect.topLeft(), rect.bottomLeft())
     g.setColorAt(0, rim)
-    g.setColorAt(0.3, with_alpha(rim, rim.alphaF() * 0.22))
-    g.setColorAt(0.7, with_alpha(rim, rim.alphaF() * 0.16))
-    g.setColorAt(1, with_alpha(rim, rim.alphaF() * 0.7))
-    p.setPen(QPen(QBrush(g), 1.2))
+    g.setColorAt(0.5, with_alpha(rim, 0))
+    p.setPen(QPen(QBrush(g), 1))
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    s = (rect.width() - 2) / rect.width() if rect.width() > 2 else 1
+    inner = QPainterPath(path)
     c = rect.center()
+    p.save()
     p.translate(c)
-    p.scale((rect.width() - 2) / rect.width() if rect.width() > 2 else 1,
-            (rect.height() - 2) / rect.height() if rect.height() > 2 else 1)
+    p.scale(s, (rect.height() - 2) / rect.height() if rect.height() > 2 else 1)
     p.translate(-c)
-    p.drawPath(path)
+    p.drawPath(inner)
     p.restore()
 
 
@@ -192,8 +153,8 @@ class _HoverButton(QAbstractButton):
         return p
 
 
-class SquareButton(_HoverButton):
-    """Botão de vidro quadrado, de cantos arredondados, com ícone (−, +)."""
+class CircleButton(_HoverButton):
+    """Botão redondo com ícone (−, +)."""
 
     def __init__(self, icon_name: str, size: int = 40, parent=None):
         super().__init__(parent)
@@ -206,7 +167,7 @@ class SquareButton(_HoverButton):
     def paintEvent(self, _):
         p = self._begin()
         r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        paint_glass(p, rounded(r, r.width() * 0.34), r, self._fill())
+        paint_glass(p, ellipse(r), r, self._fill())
         s = r.width() * 0.4
         icons.paint(p, self.icon_name, QRectF(r.center().x() - s / 2, r.center().y() - s / 2, s, s),
                     theme.TEXT if self.isEnabled() else theme.DIM, 1.8)
@@ -260,7 +221,7 @@ class PowerButton(_HoverButton):
 
 
 class Pill(_HoverButton):
-    """Botão de vidro 'Cenas ▾'."""
+    """Cápsula 'Cenas ▾'."""
 
     def __init__(self, icon_name: str, parent=None):
         super().__init__(parent)
@@ -278,7 +239,7 @@ class Pill(_HoverButton):
     def paintEvent(self, _):
         p = self._begin()
         r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        paint_glass(p, rounded(r, 17), r, self._fill())
+        paint_glass(p, rounded(r, r.height() / 2), r, self._fill())
         icons.paint(p, self.icon_name, QRectF(16, r.center().y() - 9, 18, 18), theme.MUTED)
         p.setFont(theme.font(13.5, QFont.Weight.DemiBold))
         p.setPen(theme.TEXT)
@@ -341,7 +302,7 @@ class Tile(_HoverButton):
 
 
 class HeaderSelector(_HoverButton):
-    """'Lâmpada  Sala ▾' no canto superior esquerdo (vidro, como os demais botões)."""
+    """'Lâmpada  Sala ▾' no canto superior esquerdo."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -363,8 +324,11 @@ class HeaderSelector(_HoverButton):
 
     def paintEvent(self, _):
         p = self._begin()
-        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        paint_glass(p, rounded(r, 12), r, self._fill())
+        r = QRectF(self.rect())
+        if self._hover.value > 0:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(with_alpha(theme.HOVER, theme.HOVER.alphaF() * self._hover.value))
+            p.drawRoundedRect(r, r.height() / 2, r.height() / 2)
         icons.paint(p, "bulb", QRectF(8, r.center().y() - 9, 18, 18), theme.MUTED, 1.6)
         x = 30.0
         p.setFont(theme.font(13))
@@ -381,7 +345,7 @@ class HeaderSelector(_HoverButton):
 
 
 class IconButton(_HoverButton):
-    """Botão de vidro quadrado pequeno do rodapé (rotinas, configurações)."""
+    """Ícone discreto do rodapé (rotinas, configurações)."""
 
     def __init__(self, icon_name: str, size: int = 32, parent=None):
         super().__init__(parent)
@@ -390,10 +354,13 @@ class IconButton(_HoverButton):
 
     def paintEvent(self, _):
         p = self._begin()
-        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        r = QRectF(self.rect())
         h = self._hover.value
-        paint_glass(p, rounded(r, r.width() * 0.34), r, self._fill())
-        s = r.width() * 0.5
+        if h > 0:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(with_alpha(theme.HOVER, theme.HOVER.alphaF() * h))
+            p.drawEllipse(r)
+        s = r.width() * 0.6
         icons.paint(p, self.icon_name, QRectF((r.width() - s) / 2, (r.height() - s) / 2, s, s),
                     mix(theme.MUTED, theme.TEXT, h), 1.6)
 

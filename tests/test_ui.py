@@ -67,7 +67,7 @@ def test_popup_controls(qapp, app):
 
 
 def test_popup_glass_paints_in_every_mode(qapp, app):
-    """Vidro líquido nos botões e repintura parcial do painel (aba de cores) sem erros."""
+    """Repintura parcial do painel (aba de cores) sem erros."""
     from PySide6.QtCore import QRect
 
     popup = app.popup

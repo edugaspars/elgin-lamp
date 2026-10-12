@@ -12,7 +12,7 @@ from ..i18n import tr
 from ..lamp import LampState, display_rgb, rgb_from_hue
 from . import glass, icons, theme
 from .tray import style_menu
-from .widgets import BigSlider, BulbView, Fader, HeaderSelector, IconButton, Pill, PowerButton, SquareButton, Tile
+from .widgets import BigSlider, BulbView, CircleButton, Fader, HeaderSelector, IconButton, Pill, PowerButton, Tile
 
 WIDTH = 400
 SHADOW = 22
@@ -130,8 +130,8 @@ class Popup(QWidget):
 
         srow = QHBoxLayout()
         srow.setSpacing(10)
-        self.minus = SquareButton("minus")
-        self.plus = SquareButton("plus")
+        self.minus = CircleButton("minus")
+        self.plus = CircleButton("plus")
         self.slider = BigSlider()
         self.minus.clicked.connect(lambda: self.slider.step(-self._step()))
         self.plus.clicked.connect(lambda: self.slider.step(self._step()))
