@@ -66,6 +66,43 @@ def test_popup_controls(qapp, app):
     assert popup.scene_pill.text() == app.store.config.scenes[0].name
 
 
+def test_popup_repaints_when_only_the_colour_changes(qapp, app):
+    """Trocar só a cor (lâmpada já acesa, mesmo brilho) precisa repintar o painel inteiro: o brilho do
+    vidro muda de cor, e antes só os filhos (lâmpada, número) eram repintados, deixando retângulos."""
+    from PySide6.QtCore import QRect
+
+    svc, popup = app.service, app.popup
+    ids = svc.ids("*")
+    popup.show_at(QRect(600, 580, 20, 20))
+    svc.set_power(ids, True)
+    svc.set_color(ids, (255, 0, 0))
+    assert wait(qapp, lambda: svc.state(ids[0]).color == (255, 0, 0))
+    wait(qapp, lambda: False, 0.6)  # deixa as animações terminarem
+    popup._set_mode("hue")
+
+    calls = []
+    popup.update = lambda *a: calls.append(a)  # offscreen não gera eventos de pintura: observa o pedido
+    try:
+        svc.set_color(ids, (0, 0, 255))
+        assert wait(qapp, lambda: svc.state(ids[0]).color == (0, 0, 255))
+        wait(qapp, lambda: False, 0.3)
+    finally:
+        del popup.update
+    assert popup._glow.blue() == 255
+    assert calls  # o painel inteiro foi marcado para repintura
+
+
+def test_tile_value_fits_inside_the_card(qapp):
+    """"Desligado" no card Timer não pode encostar na borda direita (margem de 13 px dos dois lados)."""
+    from PySide6.QtGui import QFont, QFontMetrics
+    from lampdesk.ui.widgets import fit_font
+
+    avail = 88 - 26  # largura típica do card no painel
+    font = fit_font("Desligado", avail, QFont.Weight.DemiBold)
+    assert QFontMetrics(font).horizontalAdvance("Desligado") <= avail
+    assert fit_font("100%", avail, QFont.Weight.DemiBold).pixelSize() == 14  # texto curto mantém o tamanho
+
+
 def test_sleep_timer(qapp, app):
     svc = app.service
     svc.start_timer("*", svc.ids("*"), 30)

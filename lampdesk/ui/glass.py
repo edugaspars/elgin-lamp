@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 SCALE = 8         # a imagem é reduzida antes de desfocar (mais rápido e mais macio)
 BLUR = 7          # raio do desfoque na imagem reduzida
 SATURATION = 1.5  # realce de cor do fundo
-MARGIN = 48       # captura além da borda para o desfoque não escurecer as beiradas
+MARGIN = 72       # captura além da borda (maior que o desfoque: BLUR * SCALE = 56) para não escurecer as beiradas
 
 
 def supported() -> bool:
@@ -116,7 +116,8 @@ def grab_backdrop(rect: QRect) -> Optional[QImage]:
         # recorta de volta para o retângulo do painel
         fx, fy = small.width() / area.width(), small.height() / area.height()
         crop = QRectF((rect.x() - area.x()) * fx, (rect.y() - area.y()) * fy, rect.width() * fx, rect.height() * fy)
-        return with_luma(small.copy(crop.toAlignedRect()))
+        # opaco: um fundo com alfa parcial deixaria a janela translúcida mostrar a tela nítida por baixo
+        return with_luma(small.copy(crop.toAlignedRect()).convertToFormat(QImage.Format.Format_RGB32))
     except Exception:  # noqa: BLE001 - sem desfoque é só menos bonito
         log.debug("Não foi possível capturar o fundo do painel", exc_info=True)
         return None

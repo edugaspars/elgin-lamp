@@ -252,7 +252,9 @@ class Popup(QWidget):
         on = s.is_on and s.online
         self.power.set_state(on, accent)
         self.bulb.set_state(on, accent, s.brightness)
-        self._glow = accent
+        if accent != self._glow:
+            self._glow = accent
+            self.update()  # o brilho do vidro mudou de cor; sem isso só os filhos repintam (retângulos soltos)
         self._glow_level.to((0.45 + 0.55 * s.brightness / 100) if on else 0)
 
         self.t_temp.setEnabled(s.has_temperature)
