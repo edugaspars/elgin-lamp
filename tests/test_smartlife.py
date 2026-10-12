@@ -38,7 +38,7 @@ class FakeManager:
 
     def update_device_cache(self):
         self.device_map = {
-            "ebcaaaa3": SimpleNamespace(id="ebcaaaa3", name="Quarto Mãe", local_key=FAKE_KEY,
+            "ebcaaaa3": SimpleNamespace(id="ebcaaaa3", name="Quarto A", local_key=FAKE_KEY,
                                         ip="200.1.2.3"),
             "hub1": SimpleNamespace(id="hub1", name="Hub", local_key=""),
         }
