@@ -1,199 +1,249 @@
-# Elgin Lamp
+<div align="center">
 
-Controle suas lâmpadas inteligentes **Elgin** direto da bandeja do Windows (e do Linux), **pela rede local**: sem nuvem, sem abrir app no celular.
+# 💡 Elgin Lamp
 
-![Painel do Elgin Lamp](docs/screenshot.png)
+**Control your smart bulbs from the Windows system tray: instantly, over your local network, no cloud.**
 
-As lâmpadas Wi-Fi da Elgin usam a plataforma **Tuya** (a mesma do app Smart Life). O app fala com elas pelo protocolo local da Tuya, via [tinytuya](https://github.com/jasonacox/tinytuya), usando o **IP**, o **Device ID** e o **Local Key** de cada lâmpada.
+**English** · [Português](README.pt-BR.md)
 
-## Recursos
+[![CI](https://github.com/edugaspars/elgin-lamp/actions/workflows/ci.yml/badge.svg)](https://github.com/edugaspars/elgin-lamp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
-- **Painel na bandeja**: clique no ícone para abrir o painel, que fecha sozinho ao clicar fora.
-  - Liga/desliga, **brilho**, **temperatura do branco** (quente ↔ frio) e **cor** (RGB).
-  - Escolha uma lâmpada ou **todas** de uma vez.
-  - **Cenas** prontas (Leitura, Relaxar, Foco, Noite, Cinema) e personalizáveis.
-  - **Timer**: "desligar em 15/30/60/120 min".
-- **Rotinas**: horário fixo com dias da semana, **nascer/pôr do sol** com deslocamento em minutos, e as ações ligar, desligar ou aplicar cena.
-- **Tempo real**: o app mantém uma conexão aberta com cada lâmpada. Os comandos chegam em milissegundos, e mudanças feitas pela Alexa, pelo app ou pelo interruptor aparecem no painel na hora.
-- **Menu do clique direito**: liga/desliga cada lâmpada, liga/desliga todas e aplica cenas.
-- **Clique do meio** no ícone: liga/desliga todas.
-- **Iniciar com o Windows** (opção nas configurações).
-- **Português e inglês**.
-- **Busca na rede** (descobre IP e protocolo) e **login com QR Code no Smart Life** (descobre os Local Keys, sem conta de desenvolvedor).
+<img src="docs/screenshot-en.png" width="360" alt="Elgin Lamp panel with the bulb in warm white">
+<img src="docs/screenshot-color-en.png" width="360" alt="Elgin Lamp panel in color mode">
 
-## Segurança: seu IP e suas chaves não vão para o projeto
+</div>
 
-| O quê | Onde fica |
+---
+
+## Why it exists
+
+Smart bulbs are great until you need them **while you're at your computer**. Grab the phone, unlock it, open the app, wait for it to load… just to dim the lights for a meeting or a movie.
+
+**Elgin Lamp** puts your bulbs **one click away**, right next to the Windows clock. It talks **directly to the bulb over your Wi-Fi**: no cloud round-trip, no lag, and it keeps working when the internet is down.
+
+## Who it's for
+
+- **Owners of Elgin Wi-Fi bulbs** (the *Elgin Smart* line, popular in Brazil) who spend the day at a PC.
+- **Anyone with a Tuya-based bulb**, such as those used with the *Smart Life* and *Tuya Smart* apps. The same technology powers dozens of brands worldwide.
+- **People who work or game on a PC** and want to adjust the lights without reaching for the phone.
+- **Privacy-minded users** who'd rather not depend on third-party servers for everyday control.
+- **Tinkerers and developers** looking for a real-world Python tray app built on the local Tuya protocol.
+
+> No coding required: download the `.exe` and follow the steps below.
+
+## Features
+
+| | |
 |---|---|
-| IP, Device ID, Local Key, rotinas e cenas | `%APPDATA%\ElginLamp\config.dat` (Windows) ou `~/.config/elgin-lamp/config.dat` (Linux) |
-| Criptografia no Windows | **DPAPI**: o arquivo só abre na sua conta de usuário, neste PC |
-| Criptografia no Linux | **Fernet (AES)**, com a chave no chaveiro do sistema (Secret Service/KWallet) |
-| Logs | `elgin-lamp.log` na mesma pasta, sem IP nem chaves (IDs aparecem mascarados como `••••a9c3`) |
+| ⚡ **Real time** | Commands reach the bulb in milliseconds. Changes made through Alexa, the phone app or the wall switch show up in the panel instantly. |
+| 🎛️ **Full control** | Power, brightness, white temperature (warm ↔ cool) and color (RGB). |
+| 💡 **Multiple bulbs** | Control each bulb individually or all of them at once. |
+| 🎬 **Scenes** | Reading, Relax, Focus, Night, Movie… plus your own. |
+| ⏰ **Routines** | By time and weekday, or at **sunrise/sunset** with a minute offset. |
+| 🌙 **Sleep timer** | "Turn off in 30 minutes". |
+| 🔐 **Privacy** | IPs and keys stay **encrypted** on your PC only. Nothing goes into the repository. |
+| 🔑 **Easy setup** | Finds the bulbs on your network and gets the key with a **QR code** scanned in Smart Life. |
+| 🌎 **English and Portuguese** | Follows your system language; switch anytime. |
+| 🚀 **Starts with Windows** | Sits quietly in the tray, ready to go. |
 
-Nada é gravado na pasta do projeto. Além disso:
+## How it works
 
-- O `.gitignore` bloqueia `*.dat`, `.env` e os arquivos que o `tinytuya wizard` gera (`devices.json`, `tinytuya.json`, `snapshot.json`), que contêm chaves.
-- O hook de pre-commit (`scripts/check_secrets.py`) **impede commits** com IPs de rede local (`192.168.x.x`, `10.x.x.x`, `172.16–31.x.x`), Local Keys ou esses arquivos. Para ativar:
+```mermaid
+flowchart LR
+    subgraph PC["Your PC"]
+        UI["Tray panel<br/>(PySide6)"] --> S["Lamp service"]
+        S --> L1["Live connection<br/>bulb 1"]
+        S --> L2["Live connection<br/>bulb 2"]
+        CFG[("Encrypted<br/>config<br/>%APPDATA%")] -.-> S
+    end
+    L1 <-->|"TCP 6668 · AES<br/>local Tuya protocol"| B1["💡 Bulb"]
+    L2 <-->|"TCP 6668 · AES"| B2["💡 Bulb"]
+    PC -.->|"once, to obtain the<br/>Local Key (QR code)"| CLOUD["☁️ Tuya cloud"]
+```
 
-  ```bash
-  git config core.hooksPath .githooks
-  ```
+1. **Local protocol.** Elgin bulbs and other Tuya-platform bulbs accept commands on the local network (TCP port 6668), AES-encrypted with a per-bulb key called the **Local Key**. The app uses [tinytuya](https://github.com/jasonacox/tinytuya) to build those messages and supports protocol versions 3.1 to 3.5.
+2. **Live connection.** Each bulb keeps a connection open all the time, in its own thread:
+   - commands are sent without waiting for a reply, so the panel updates instantly;
+   - the bulb announces every state change, which keeps the app in sync with Alexa and the phone app;
+   - a ping every 10 s keeps the connection alive, and it reconnects on its own if the network drops.
+3. **The Local Key.** It is created when the bulb is paired in the phone app and stored in the Tuya cloud. Elgin Lamp fetches it **only once**, through a QR code you scan in the Smart Life app. After that, the cloud is no longer used.
+4. **Your data.** The IP, Device ID and Local Key live in a single file under `%APPDATA%\ElginLamp`:
+   - on Windows it is encrypted with **DPAPI**, so only your user account can open it;
+   - on Linux it is encrypted with **Fernet (AES)**, with the key stored in the system keyring.
 
-- O CI do GitHub roda a mesma checagem no repositório inteiro.
+## Installation
 
-> **É perigoso vazar?** O IP local sozinho (192.168.x.x) é de baixo risco, porque só vale dentro da sua rede. Já o **Local Key + Device ID** permitem que qualquer pessoa **na sua rede** controle a lâmpada. Por isso o arquivo inteiro é criptografado.
+### Windows (recommended)
 
-## Instalação no Windows
+1. Go to **[Actions](https://github.com/edugaspars/elgin-lamp/actions/workflows/ci.yml)**, open the latest ✅ run and download the **ElginLamp-windows** artifact.
+2. Extract `ElginLamp.exe` to a permanent folder, for example `%LOCALAPPDATA%\Programs\ElginLamp`.
+3. Run it. If Windows SmartScreen warns you, click **More info › Run anyway** (the executable has no paid code signature).
+4. If the firewall asks, allow it on **Private networks**. This is what lets the app find bulbs on your network.
 
-### Opção A: baixar o `.exe` pronto
+The 💡 icon appears next to the clock. If it's hidden, click the **^** arrow and drag it onto the taskbar.
 
-Cada push no GitHub roda o workflow **CI**, que gera o executável. Abra a aba **Actions** do repositório, entre na última execução verde e baixe o artefato **ElginLamp-windows**. Ele contém o `ElginLamp.exe`, que não precisa de instalação.
+<details>
+<summary><b>Build the .exe yourself</b></summary>
 
-> O Windows SmartScreen pode avisar que o app é de "editor desconhecido", porque o executável não é assinado. Clique em **Mais informações › Executar assim mesmo**.
-
-### Opção B: gerar o `.exe` no seu PC
-
-Requer [Python 3.10+](https://www.python.org/downloads/) (marque "Add to PATH" na instalação).
+Requires [Python 3.10+](https://www.python.org/downloads/).
 
 ```bat
+git clone https://github.com/edugaspars/elgin-lamp.git
+cd elgin-lamp
 build_windows.bat
 ```
 
-O script cria um ambiente virtual, instala as dependências, roda os testes e gera `dist\ElginLamp.exe`.
+The script creates a virtual environment, runs the tests and produces `dist\ElginLamp.exe`.
+</details>
 
-### Opção C: rodar com Python
+<details>
+<summary><b>Run from Python (Windows or Linux)</b></summary>
 
-```bat
-py -m venv .venv
-.venv\Scripts\activate
+```bash
 pip install -r requirements.txt
-pythonw -m elgin_lamp
+python -m elgin_lamp          # on Windows, use pythonw to avoid a console window
+python -m elgin_lamp --demo   # simulated bulbs, to try the app
 ```
 
-Para testar a interface **sem lâmpada** (lâmpadas simuladas): `python -m elgin_lamp --demo`.
+On Linux with **GNOME**, the tray icon requires the *AppIndicator and KStatusNotifierItem Support* extension.
+</details>
 
-## Primeiro uso
+## Getting started
 
-1. Abra o app. Ele aparece na bandeja, perto do relógio (se não aparecer, procure na setinha **^** de ícones ocultos e arraste para a barra).
-2. Clique em **Adicionar lâmpada** e preencha:
-   - **IP local**, por exemplo `192.168.0.10`. Use **Buscar na rede** para descobrir.
-   - **Device ID** e **Local Key**: sem o Local Key? Clique em **Não tenho o Local Key** (veja a seção abaixo).
-   - **Protocolo**: deixe em **Automático**.
-3. Clique em **Testar conexão** e depois em **Salvar**.
+### 1. The bulb must be in the Smart Life app
 
-> **Dica:** no seu roteador, reserve um IP fixo (reserva DHCP) para cada lâmpada. Se o IP mudar, use **Buscar na rede** de novo: o app atualiza o IP da lâmpada já cadastrada.
+QR-code sign-in works with **Smart Life** or **Tuya Smart** accounts. If your bulb is in the **Elgin app**, move it over (takes about 10 minutes):
 
-## Como obter o Device ID e o Local Key
+1. In the Elgin app, open the bulb and choose **Remove device**.
+2. Flip the wall switch off and on 3 times until the bulb **blinks quickly**.
+3. In **Smart Life**, tap **+ › Add device**, with the phone on **2.4 GHz** Wi-Fi.
+4. **Alexa/Google:** enable the **Smart Life** skill and ask it to discover devices.
 
-O Local Key é gerado quando a lâmpada é pareada e fica guardado na nuvem Tuya. Sem ele não há controle local, porque a lâmpada só aceita comandos criptografados com essa chave. Você precisa buscá-lo **uma vez**. Depois disso, o controle é 100% local.
+### 2. Add the bulb to Elgin Lamp
 
-### Passo 0: a lâmpada precisa estar no app Smart Life
+1. Click the 💡 icon, then **Add lamp**.
+2. Use **Scan network** to fill in the IP and the Device ID.
+3. Click **I don't have the Local Key**:
+   - in Smart Life, copy your **User Code** from *Me › ⚙ Settings › Account and Security*;
+   - paste it in Elgin Lamp and click **Generate QR code**;
+   - in Smart Life, open the **Me** tab, tap the scanner icon (top right), scan and confirm on the phone.
+4. Click **Test connection**, then **Save**. Done!
 
-Se ela está no **app da Elgin**, mova-a para o **Smart Life** (cerca de 10 minutos):
+<img src="docs/settings-en.png" width="640" alt="Elgin Lamp settings">
 
-1. Instale o **Smart Life** e crie uma conta.
-2. No app da Elgin, abra a lâmpada, toque no lápis/engrenagem e escolha **Remover dispositivo**.
-3. Ligue e desligue a lâmpada no interruptor 3 vezes, até ela **piscar rápido**.
-4. No Smart Life, toque em **+ › Adicionar dispositivo**. O celular precisa estar no **Wi-Fi 2,4 GHz**.
-5. **Alexa**: em **Skills**, ative a skill **Smart Life** e peça "Alexa, descobrir dispositivos". Apague a lâmpada antiga (sem resposta) e refaça as rotinas que usavam essa lâmpada.
+> 💡 **Tip:** reserve a fixed IP for each bulb in your router (DHCP reservation). If the IP ever changes, **Scan network** updates the bulb you already added.
 
-### Jeito fácil: login com QR Code (sem conta de desenvolvedor)
+<details>
+<summary><b>Alternative: the official Tuya developer platform</b></summary>
 
-1. No Smart Life, copie seu **Código do usuário** em **Eu › ⚙ Configurações › Conta e segurança › Código do usuário**.
-2. No Elgin Lamp, há dois caminhos:
-   - Na tela da lâmpada, clique em **Não tenho o Local Key**.
-   - Ou vá em **Configurações › Lâmpadas › Entrar com Smart Life** para importar todas de uma vez.
-3. Cole o código e clique em **Gerar QR Code**.
-4. No Smart Life, abra a aba **Eu**, toque no **ícone de leitor** (canto superior direito), escaneie e **confirme o login** no celular.
-5. O app preenche o Local Key (e o IP, buscando na rede). Clique em **Testar conexão** e depois em **Salvar**.
+QR-code sign-in uses the same mechanism as Tuya's official **Home Assistant** integration (the `tuya-device-sharing-sdk` library). If Tuya ever disables it:
 
-A sessão é encerrada logo depois e nada da sua conta é salvo.
+1. Create a free account at [iot.tuya.com](https://iot.tuya.com).
+2. Go to **Cloud › Development › Create Cloud Project**:
+   - Smart Home;
+   - pick the data center that matches your app account (*Western America* for Brazil and the US).
+3. Under **Devices › Link App Account**, scan the QR code with Smart Life.
+4. Copy the **Access ID** and **Access Secret** from the *Overview* tab.
+5. In Elgin Lamp, use **Settings › Lamps › Import from Tuya cloud**.
 
-> Esse login usa o mesmo mecanismo da integração oficial da Tuya no **Home Assistant** (biblioteca `tuya-device-sharing-sdk`). Ele não é um acesso "oficial" para este app, e a Tuya pode desativá-lo no futuro. Se isso acontecer, use o caminho abaixo.
+Credentials are not saved.
+</details>
 
-### Alternativa: plataforma de desenvolvedor da Tuya
+## Usage
 
-1. Crie uma conta em **[iot.tuya.com](https://iot.tuya.com)**. O tipo de conta pode ser pessoal ("Skip" no formulário da empresa).
-2. Vá em **Cloud › Development › Create Cloud Project**:
-   - *Industry*: Smart Home. *Development Method*: Smart Home.
-   - *Data Center*: **Western America** (padrão para contas do Brasil). Se não achar as lâmpadas, tente outro.
-   - Aceite os serviços sugeridos (precisa ter **IoT Core**).
-3. No projeto, abra **Devices › Link App Account › Add App Account** e escaneie o QR Code com o Smart Life (**Eu › ícone de leitor**).
-4. Na aba **Overview**, copie o **Access ID/Client ID** e o **Access Secret/Client Secret**.
-5. No Elgin Lamp, vá em **Configurações › Lâmpadas › Importar da nuvem Tuya**:
-   - Região: `us` (Western America).
-   - Cole o Access ID e o Secret.
-   - Informe o Device ID de qualquer lâmpada.
-   - Marque as lâmpadas e importe.
+| Action | How |
+|---|---|
+| Open the panel | Left-click the 💡 icon |
+| Turn all bulbs on/off | Middle-click the icon |
+| Quick menu (bulbs, scenes, settings) | Right-click the icon |
+| Change what the slider controls | Click the **Brightness**, **White** or **Color** cards |
+| Pick an exact color | Click the **Color** card again |
+| Routines and sunrise/sunset | The ⏰ icon in the panel footer |
 
-As credenciais da nuvem **não são salvas**: só os dados das lâmpadas, criptografados.
+### Command line
 
-> **Atenção:** se você **parear a lâmpada de novo**, o Local Key muda. Basta buscar outra vez.
-
-**Alternativa via terminal:** `python -m tinytuya wizard`, rodado numa pasta **fora** do projeto, gera um `devices.json` com tudo. Copie os valores para o app e apague o arquivo.
-
-## Linha de comando
-
-Usa as lâmpadas já cadastradas no app, então nenhum IP ou chave aparece no comando. Serve para atalhos e para o Agendador de Tarefas.
+For shortcuts and scripts, using the bulbs you've already added (no IPs or keys on the command line):
 
 ```bat
 python -m elgin_lamp.cli status
-python -m elgin_lamp.cli on --lamp Sala
-python -m elgin_lamp.cli off
-python -m elgin_lamp.cli toggle --lamp Quarto
+python -m elgin_lamp.cli on --lamp "Living Room"
 python -m elgin_lamp.cli brightness 40
+python -m elgin_lamp.cli off
 ```
 
-## Linux
+> Many Tuya bulbs accept **only one local connection at a time**. While the app is open, the command line may not be able to connect.
+
+## Privacy and security
+
+- **None of your data lives in the project.** Everything is in `%APPDATA%\ElginLamp\config.dat`, encrypted for your user account (DPAPI on Windows; Fernet + keyring on Linux).
+- **No secrets in logs:** IDs are masked (`••••a9c3`), and IPs and keys are never logged.
+- **One-time Smart Life sign-in:** the session is closed right after the keys are fetched, and nothing from the account is stored.
+- **Leak protection in Git:**
+  - `.gitignore` blocks sensitive files;
+  - a pre-commit hook and CI reject commits containing local IPs, Local Keys or `tinytuya wizard` files (`devices.json`, `tinytuya.json`).
+
+> **What if a Local Key leaks?** Someone with both the Local Key and the Device ID can control the bulb **from inside your network**. Not the end of the world, but that's why everything is encrypted. If you suspect a leak, re-pairing the bulb generates a new key.
+
+## Troubleshooting
+
+| Symptom | What to do |
+|---|---|
+| "Offline" | The PC must be on the same network as the bulb. Check the IP with **Scan network**. |
+| Network scan finds nothing | Allow the app through Windows Firewall on **private networks** (UDP ports 6666, 6667 and 7000) and make sure the network is marked *Private*. |
+| Key error / bulb ignores commands | The Local Key changes whenever the bulb is re-paired: fetch it again. |
+| A routine didn't run | Routines run while the app is open: enable **Start with system**. After sleep, a routine still runs up to 10 minutes late. |
+| Works intermittently | Close other local integrations (Home Assistant/LocalTuya), since bulbs accept only a few simultaneous connections. |
+
+Logs are in `%APPDATA%\ElginLamp\elgin-lamp.log`. Use `--verbose` for detailed logging.
+
+## For developers
 
 ```bash
-pip install -r requirements.txt
-python -m elgin_lamp
+git clone https://github.com/edugaspars/elgin-lamp.git && cd elgin-lamp
+pip install -r requirements-dev.txt
+git config core.hooksPath .githooks      # enables the leak-blocking hook
+python -m pytest -q                      # 45 tests, including a simulated Tuya bulb over TCP
+python -m elgin_lamp --demo              # run without hardware
 ```
-
-- No **GNOME**, o ícone da bandeja precisa da extensão *AppIndicator and KStatusNotifierItem Support*. KDE, XFCE e Cinnamon já suportam.
-- "Iniciar com o sistema" cria `~/.config/autostart/elgin-lamp.desktop`.
-- A opção de GPS existe só no Windows. No Linux, escolha a cidade ou digite latitude/longitude.
-
-## Solução de problemas
-
-| Sintoma | O que fazer |
-|---|---|
-| "Sem conexão" | O PC precisa estar na mesma rede da lâmpada. Confira o IP (**Buscar na rede**). |
-| "Buscar na rede" não acha nada | Permita o app no **Firewall do Windows** em redes **privadas** (a busca escuta as portas UDP 6666, 6667 e 7000). Verifique se a rede do Windows está como "Privada". |
-| Conecta mas não obedece / erro de chave | O Local Key mudou (a lâmpada foi pareada de novo): importe outra vez. Confira também o protocolo (3.3, 3.4 ou 3.5). |
-| Funciona às vezes | Lâmpadas Tuya aceitam poucas conexões locais simultâneas (muitas só uma), e o app mantém uma aberta. Feche outras integrações locais (Home Assistant/LocalTuya) para testar. |
-| A linha de comando não conecta | Mesmo motivo: com o app aberto, a conexão local da lâmpada pode já estar em uso. Feche o app ou use os atalhos do próprio app. |
-| Rotina não rodou | As rotinas rodam com o app aberto. Ative **Iniciar com o sistema**. Se o PC estava em suspensão, a rotina ainda roda até 10 min depois do horário. |
-| Configuração "não pôde ser lida" | O arquivo foi criado em outro usuário/PC (o DPAPI não abre). Uma cópia foi guardada e o app começou do zero. |
-
-Os logs ficam em `%APPDATA%\ElginLamp\elgin-lamp.log`. Para log detalhado, use `--verbose`.
-
-## Estrutura
 
 ```
 elgin_lamp/
-  app.py          bandeja, instância única, rotinas
-  lamp.py         protocolo Tuya (tinytuya) + lâmpada simulada (--demo)
-  service.py      threads/fila de comandos sem travar a interface
-  storage.py      modelo de dados + arquivo criptografado
+  app.py          tray, single instance, routines
+  lamp.py         Tuya protocol: LiveBulb (live connection), TuyaBulb, simulated bulb
+  service.py      bridge between the connections and the Qt UI
+  storage.py      data model + encrypted file
   crypto.py       DPAPI (Windows) / Fernet + keyring (Linux)
-  scheduler.py    rotinas, nascer/pôr do sol (astral)
-  discovery.py    busca na rede, login Smart Life (QR) e nuvem Tuya
-  geo.py          cidades offline + GPS do Windows
-  autostart.py    iniciar com o sistema
-  i18n.py         português/inglês
-  cli.py          linha de comando
-  ui/             painel, componentes, configurações, ícone da bandeja
-scripts/          check_secrets.py (anti-vazamento), make_icon.py
-tests/            pytest
+  scheduler.py    routines, sunrise/sunset (astral)
+  discovery.py    network scan, Smart Life sign-in (QR), Tuya cloud
+  geo.py          offline city list + Windows location
+  i18n.py         English / Portuguese
+  cli.py          command line
+  ui/             panel, hand-painted widgets, settings, tray
+tests/            pytest, including fake_tuya.py (simulated Tuya 3.3 bulb)
 ```
 
-## Desenvolvimento
+### Contributing
 
-```bash
-pip install -r requirements-dev.txt
-git config core.hooksPath .githooks
-python -m pytest -q
-python -m elgin_lamp --demo
-```
+Contributions are welcome! Some ideas:
+
+- support for more Tuya device types (smart plugs, LED strips);
+- global keyboard shortcuts;
+- an installer (MSI/winget) and a code-signed executable;
+- more languages (see `elgin_lamp/i18n.py`).
+
+Open an issue describing the idea or the bug. Pull requests must pass CI (tests + secret scan).
+
+## Credits
+
+Built with [tinytuya](https://github.com/jasonacox/tinytuya), [PySide6 (Qt)](https://doc.qt.io/qtforpython-6/), [astral](https://github.com/sffjunkie/astral), [tuya-device-sharing-sdk](https://github.com/tuya/tuya-device-sharing-sdk) and [qrcode](https://github.com/lincolnloop/python-qrcode). Thanks to everyone who maintains them.
+
+## Disclaimer
+
+This is an independent, unofficial project. **It is not affiliated with, endorsed by, or supported by Elgin S.A. or Tuya Inc.** "Elgin", "Tuya" and "Smart Life" are trademarks of their respective owners and are mentioned only to describe compatibility. Use at your own risk.
+
+## License
+
+[MIT](LICENSE) © edugaspars
