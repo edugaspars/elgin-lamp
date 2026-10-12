@@ -72,6 +72,8 @@ class Settings:
     autostart: bool = False
     location: Location = field(default_factory=Location)
     last_selected: str = "*"
+    theme: str = "dark"           # "dark" | "light"
+    reduce_transparency: bool = False
 
 
 @dataclass
@@ -110,6 +112,8 @@ class Config:
             autostart=bool(s.get("autostart", False)),
             location=Location(**{k: loc[k] for k in ("label", "latitude", "longitude") if k in loc}),
             last_selected=s.get("last_selected", "*"),
+            theme=s.get("theme") if s.get("theme") in ("dark", "light") else "dark",
+            reduce_transparency=bool(s.get("reduce_transparency", False)),
         )
         return cls(
             lamps=build(Lamp, data.get("lamps")),

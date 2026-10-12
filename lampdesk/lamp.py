@@ -1,4 +1,5 @@
-"""Comunicação local com as lâmpadas (protocolo Tuya, usado pelas lâmpadas Elgin).
+"""Comunicação local com as lâmpadas (protocolo Tuya/Smart Life, usado por
+lâmpadas de várias marcas, como Elgin e Positivo).
 
 Nada aqui depende de Qt: dá para usar como biblioteca/script também.
 """
@@ -219,7 +220,7 @@ class TuyaBulb:
 
 # --------------------------------------------------------- modo de demo ---
 class FakeBulb:
-    """Lâmpada simulada (python -m elgin_lamp --demo) para testar sem hardware."""
+    """Lâmpada simulada (python -m lampdesk --demo) para testar sem hardware."""
 
     def __init__(self, lamp: Lamp):
         self.lamp = lamp

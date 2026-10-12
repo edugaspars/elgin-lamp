@@ -11,13 +11,13 @@ from PySide6.QtCore import QTimer
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
-from . import APP_ID, APP_NAME, __version__, scheduler
+from . import APP_ID, APP_NAME, __version__, autostart, scheduler
 from .i18n import set_language, tr
 from .paths import data_dir, log_file
 from .service import LampService
 from .storage import Lamp, Store, default_scenes
 
-log = logging.getLogger("elgin_lamp")
+log = logging.getLogger("lampdesk")
 
 
 def setup_logging(verbose: bool) -> None:
@@ -30,7 +30,7 @@ def setup_logging(verbose: bool) -> None:
     logging.getLogger("tinytuya").setLevel(logging.WARNING)
 
 
-class ElginLampApp:
+class LampDeskApp:
     def __init__(self, qapp: QApplication, demo: bool = False):
         self.qapp = qapp
         self.demo = demo
@@ -43,7 +43,14 @@ class ElginLampApp:
             self.store = Store()
             self.store.load()
         cfg = self.store.config
+        if not demo:
+            try:
+                autostart.migrate_legacy()
+            except OSError:
+                log.warning("Não foi possível migrar a inicialização automática", exc_info=True)
         set_language(cfg.settings.language)
+        from .ui import theme
+        theme.apply(cfg.settings.theme, not cfg.settings.reduce_transparency)
         if demo and not cfg.lamps:
             cfg.lamps = [Lamp("Sala", "demo-1", "192.0.2.10", "0" * 16),
                          Lamp("Quarto", "demo-2", "192.0.2.11", "0" * 16),
@@ -67,12 +74,16 @@ class ElginLampApp:
                                                                  QSystemTrayIcon.MessageIcon.Warning))
 
     # ------------------------------------------------------------ interface ---
-    def _build_ui(self):
+    def _build_popup(self):
         from .ui.popup import Popup
-        from .ui.tray import Tray
 
         self.popup = Popup(self.store, self.service)
         self.popup.openSettings.connect(self.open_settings)
+
+    def _build_ui(self):
+        from .ui.tray import Tray
+
+        self._build_popup()
         self.tray = Tray(self)
         self.tray.show()
         if not self.store.config.lamps:  # primeiro uso: mostra o painel vazio
@@ -105,7 +116,21 @@ class ElginLampApp:
             self.settings_window = SettingsWindow(self.store, self.service)
             self.settings_window.configChanged.connect(self._config_changed)
             self.settings_window.languageChanged.connect(lambda: QTimer.singleShot(0, self.rebuild_ui))
+            self.settings_window.themeChanged.connect(self.apply_theme)
         self.settings_window.show_tab(tab)
+
+    def apply_theme(self):
+        """Troca claro/escuro sem fechar as configurações."""
+        from .ui import theme
+
+        s = self.store.config.settings
+        theme.apply(s.theme, not s.reduce_transparency)
+        self.popup.hide()
+        self.popup.deleteLater()
+        self._build_popup()  # o painel é barato de recriar e fica sempre fechado aqui
+        self.tray.restyle()
+        if self.settings_window:
+            self.settings_window.restyle()
 
     def _config_changed(self):
         self.service.reload()
@@ -156,7 +181,7 @@ def _single_instance(name: str):
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(prog="elgin-lamp", description=f"{APP_NAME} {__version__}")
+    parser = argparse.ArgumentParser(prog="lampdesk", description=f"{APP_NAME} {__version__}")
     parser.add_argument("--demo", action="store_true", help="usa lâmpadas simuladas (sem rede)")
     parser.add_argument("--verbose", action="store_true", help="log detalhado")
     args = parser.parse_args(argv)
@@ -183,7 +208,7 @@ def main(argv=None) -> int:
 
     from .ui.tray import tray_icon
     qapp.setWindowIcon(tray_icon(True))
-    app = ElginLampApp(qapp, demo=args.demo)
+    app = LampDeskApp(qapp, demo=args.demo)
 
     def on_connection():
         conn = server.nextPendingConnection()

@@ -5,8 +5,8 @@ import time
 
 import pytest
 
-from elgin_lamp.lamp import LampState, LiveBulb
-from elgin_lamp.storage import Lamp
+from lampdesk.lamp import LampState, LiveBulb
+from lampdesk.storage import Lamp
 from fake_tuya import DEV_ID, KEY, FakeTuyaBulb
 
 
@@ -116,9 +116,9 @@ def test_end_to_end_through_service(monkeypatch):
     import os
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
-    from elgin_lamp import service as service_mod
-    from elgin_lamp.service import LampService
-    from elgin_lamp.storage import Store
+    from lampdesk import service as service_mod
+    from lampdesk.service import LampService
+    from lampdesk.storage import Store
 
     app = QApplication.instance() or QApplication([])
     sim = FakeTuyaBulb(accept_delay=0.2)

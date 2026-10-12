@@ -1,0 +1,82 @@
+name: Release
+
+# Cada merge na main publica uma release com o minor seguinte (v1.0.0, v1.1.0…).
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:  # reserva: publica a release do commit atual da main
+    inputs:
+      version:
+        description: "Versão (vazio = minor seguinte à última tag)"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      sha: ${{ steps.v.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          fetch-depth: 0
+      - id: v
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          v="$INPUT_VERSION"
+          if [ -n "$v" ] && ! [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Versão inválida: $v" >&2; exit 1
+          fi
+          [ -n "$v" ] || v=$(python3 scripts/version.py --next-release)
+          if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then
+            echo "A tag v$v já existe" >&2; exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Release: v$v"
+
+  build:
+    needs: version
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+      ref: ${{ needs.version.outputs.sha }}
+
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Publica a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.version.outputs.version }}
+          SHA: ${{ needs.version.outputs.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "## LampDesk v$V"
+            echo
+            if [ -n "$PR_NUMBER" ]; then echo "Inclui: $PR_TITLE (#$PR_NUMBER)"; echo; fi
+            echo "**Windows:** baixe \`LampDesk.exe\` e execute (não precisa instalar)."
+            echo "**Linux:** baixe \`LampDesk-linux-x86_64\`, rode \`chmod +x LampDesk-linux-x86_64\` e execute."
+          } > notes.md
+          gh release create "v$V" assets/* --repo "$GITHUB_REPOSITORY" --target "$SHA" \
+            --title "LampDesk v$V" --notes-file notes.md

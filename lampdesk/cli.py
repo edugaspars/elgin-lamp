@@ -1,9 +1,9 @@
 """Linha de comando: liga/desliga usando as lâmpadas já salvas no app.
 
-    python -m elgin_lamp.cli status
-    python -m elgin_lamp.cli on --lamp Sala
-    python -m elgin_lamp.cli off
-    python -m elgin_lamp.cli brightness 40 --lamp Quarto
+    python -m lampdesk.cli status
+    python -m lampdesk.cli on --lamp Sala
+    python -m lampdesk.cli off
+    python -m lampdesk.cli brightness 40 --lamp Quarto
 
 IP, Device ID e Local Key vêm da configuração criptografada; nada aparece no comando.
 """
@@ -16,7 +16,7 @@ from .storage import Store
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="python -m elgin_lamp.cli")
+    ap = argparse.ArgumentParser(prog="python -m lampdesk.cli")
     ap.add_argument("action", choices=["status", "on", "off", "toggle", "brightness"])
     ap.add_argument("value", nargs="?", type=int, help="1-100 para 'brightness'")
     ap.add_argument("--lamp", help="nome da lâmpada (padrão: todas)")

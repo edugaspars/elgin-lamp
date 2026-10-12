@@ -7,21 +7,23 @@ import subprocess
 import sys
 import time
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTime, QTimer, QUrl, Signal
+from PySide6.QtCore import (QEasingCurve, QObject, QPropertyAnimation, QRectF, QRunnable, Qt, QThreadPool, QTime,
+                            QTimer, QUrl, Signal)
 from PySide6.QtGui import QColor, QDesktopServices, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QColorDialog, QComboBox,
                                QCompleter, QDialog, QFormLayout, QGridLayout, QHBoxLayout, QLabel, QLayout,
                                QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QProgressBar,
-                               QPushButton, QRadioButton, QSlider, QSpinBox, QTabWidget, QTimeEdit,
-                               QVBoxLayout, QWidget)
+                               QPushButton, QRadioButton, QSlider, QSpinBox, QTimeEdit,
+                               QGraphicsOpacityEffect, QVBoxLayout, QWidget)
 
-from .. import APP_NAME, autostart, discovery, geo, scheduler
+from .. import APP_NAME, __version__, autostart, discovery, geo, scheduler
 from ..crypto import mask
 from ..i18n import LANGUAGES, current, tr
 from ..lamp import FakeBulb, TuyaBulb
 from ..paths import data_dir
 from ..storage import PROTOCOL_VERSIONS, Lamp, Location, Routine, Scene
-from . import icons, theme
+from . import icons, native, theme
+from .widgets import Segmented, SegmentedTabs
 
 
 # ------------------------------------------------------------ utilidades ---
@@ -77,8 +79,18 @@ def button(text: str, slot=None, primary=False, danger=False) -> QPushButton:
 
 
 def swatch(color: QColor, size: int = 14) -> QIcon:
-    pm = QPixmap(size, size)
-    pm.fill(color)
+    """Bolinha de cor (status da lâmpada, cor da cena) centrada num ícone de 16 px."""
+    dpr, box = 2, 16
+    pm = QPixmap(box * dpr, box * dpr)
+    pm.setDevicePixelRatio(dpr)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(color)
+    off = (box - size) / 2
+    p.drawEllipse(QRectF(off, off, size, size))
+    p.end()
     return QIcon(pm)
 
 
@@ -107,7 +119,7 @@ class _Dialog(QDialog):
     def __init__(self, parent, title: str):
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.setStyleSheet(theme.DIALOG_QSS)
+        self.setStyleSheet(theme.dialog_qss())
         self.setMinimumWidth(440)
         self.body = QVBoxLayout(self)
         self.body.setContentsMargins(22, 20, 22, 18)
@@ -115,6 +127,10 @@ class _Dialog(QDialog):
         head = QLabel(title)
         head.setProperty("title", True)
         self.body.addWidget(head)
+
+    def showEvent(self, e):
+        native.set_dark_title(self, theme.DARK)
+        super().showEvent(e)
 
     def add_buttons(self, ok_text: str = None, extra=None):
         row = QHBoxLayout()
@@ -926,38 +942,56 @@ class GeneralTab(QWidget):
         self.auto.toggled.connect(self._autostart)
         grid.addWidget(self.auto, 1, 1)
 
-        grid.addWidget(QLabel(tr("general.location")), 2, 0, 1, 2)
+        grid.addWidget(QLabel(tr("general.appearance")), 2, 0)
+        look = QHBoxLayout()
+        look.setSpacing(16)
+        self.appearance = Segmented([tr("general.theme_dark"), tr("general.theme_light")])
+        self.appearance.setCurrentIndex(theme.MODES.index(s.theme) if s.theme in theme.MODES else 0, animate=False)
+        self.appearance.currentChanged.connect(self._theme)
+        self.reduce = QCheckBox(tr("general.reduce_transparency"))
+        self.reduce.setChecked(s.reduce_transparency)
+        self.reduce.toggled.connect(self._reduce)
+        look.addWidget(self.appearance)
+        look.addWidget(self.reduce)
+        look.addStretch(1)
+        grid.addLayout(look, 2, 1)
+
+        grid.addWidget(QLabel(tr("general.location")), 3, 0, 1, 2)
         self.loc_label = muted()
-        grid.addWidget(self.loc_label, 3, 0, 1, 2)
+        grid.addWidget(self.loc_label, 4, 0, 1, 2)
         self.city = QLineEdit()
         self.city.setPlaceholderText(tr("general.city"))
         comp = QCompleter([c[0] for c in geo.CITIES], self)
         comp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         comp.setFilterMode(Qt.MatchFlag.MatchContains)
-        comp.popup().setStyleSheet(theme.DIALOG_QSS)
+        comp.popup().setStyleSheet(theme.dialog_qss())
+        self.completer = comp
         comp.activated.connect(self._city)
         self.city.setCompleter(comp)
         self.city.returnPressed.connect(lambda: self._city(self.city.text()))
-        grid.addWidget(self.city, 4, 0, 1, 2)
+        grid.addWidget(self.city, 5, 0, 1, 2)
         self.coords = QLineEdit()
         self.coords.setPlaceholderText(tr("general.coords"))
         self.coords.editingFinished.connect(self._coords)
-        grid.addWidget(self.coords, 5, 0, 1, 2)
+        grid.addWidget(self.coords, 6, 0, 1, 2)
         self.gps = button(tr("general.gps"), self._gps)
         if not geo.gps_supported():
             self.gps.setEnabled(False)
             self.gps.setToolTip(tr("general.gps_unsupported"))
         self.gps_info = muted()
-        grid.addWidget(self.gps, 6, 0)
-        grid.addWidget(self.gps_info, 6, 1)
+        grid.addWidget(self.gps, 7, 0)
+        grid.addWidget(self.gps_info, 7, 1)
 
-        grid.addWidget(QLabel(tr("general.data")), 7, 0, 1, 2)
+        grid.addWidget(QLabel(tr("general.data")), 8, 0, 1, 2)
         path = muted(str(data_dir()))
         path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        grid.addWidget(path, 8, 0, 1, 2)
-        grid.addWidget(muted(tr("general.data_note")), 9, 0, 1, 2)
-        grid.addWidget(button(tr("btn.open_folder"), self._open_folder), 10, 0)
-        grid.setRowStretch(11, 1)
+        grid.addWidget(path, 9, 0, 1, 2)
+        grid.addWidget(muted(tr("general.data_note")), 10, 0, 1, 2)
+        grid.addWidget(button(tr("btn.open_folder"), self._open_folder), 11, 0)
+        grid.setRowStretch(12, 1)
+        about = muted(f"{APP_NAME} v{__version__}", wrap=False)
+        about.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        grid.addWidget(about, 13, 0, 1, 2)
         self.refresh()
 
     def refresh(self):
@@ -1007,6 +1041,16 @@ class GeneralTab(QWidget):
         self.win.store.save()
         self.win.languageChanged.emit()
 
+    def _theme(self, index):
+        self.win.store.config.settings.theme = theme.MODES[index]
+        self.win.store.save()
+        self.win.themeChanged.emit()
+
+    def _reduce(self, on):
+        self.win.store.config.settings.reduce_transparency = on
+        self.win.store.save()
+        self.win.themeChanged.emit()
+
     def _autostart(self, on):
         self.win.store.config.settings.autostart = on
         if not self.win.service.demo:
@@ -1027,21 +1071,28 @@ class GeneralTab(QWidget):
 class SettingsWindow(QWidget):
     configChanged = Signal()
     languageChanged = Signal()
+    themeChanged = Signal()
 
     TABS = ["lamps", "scenes", "routines", "general"]
 
     def __init__(self, store, service):
         super().__init__()
         self.store, self.service = store, service
+        self.setObjectName("settingsWindow")
         self.setWindowTitle(f"{APP_NAME} — {tr('settings')}")
-        self.setStyleSheet(theme.DIALOG_QSS)
-        self.resize(680, 580)
+        # Mica (Windows 11): a janela precisa nascer translúcida; sem Mica pintamos o fundo sólido
+        self._mica_capable = native.mica_supported()
+        self._mica = False
+        if self._mica_capable:
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.resize(700, 600)
         v = QVBoxLayout(self)
-        v.setContentsMargins(24, 20, 24, 20)
+        v.setContentsMargins(24, 22, 24, 20)
+        v.setSpacing(12)
         title = QLabel(tr("settings"))
         title.setProperty("title", True)
         v.addWidget(title)
-        self.tabs = QTabWidget()
+        self.tabs = SegmentedTabs()
         self.lamps = LampsTab(self)
         self.scenes = ScenesTab(self)
         self.routines = RoutinesTab(self)
@@ -1051,7 +1102,52 @@ class SettingsWindow(QWidget):
         self.tabs.addTab(self.routines, tr("routines"))
         self.tabs.addTab(self.general, tr("general"))
         v.addWidget(self.tabs)
+        self._apply_style()
         service.stateChanged.connect(self._on_state)
+
+    def _apply_style(self):
+        if self._mica_capable and self.isVisible():
+            self._mica = native.set_mica(self, theme.TRANSPARENCY)
+        self.setStyleSheet(theme.dialog_qss(translucent=self._mica))
+        self.general.completer.popup().setStyleSheet(theme.dialog_qss())
+        native.set_dark_title(self, theme.DARK)
+        self.update()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self._mica_capable and not self._mica and theme.TRANSPARENCY:
+            self._apply_style()  # o Mica só pode ser ligado depois que a janela existe
+
+    def paintEvent(self, e):
+        if self._mica_capable and not self._mica:  # translúcida sem Mica: fundo sólido do tema
+            p = QPainter(self)
+            p.fillRect(self.rect(), QColor(theme.dialog_color("window")))
+            p.end()
+        super().paintEvent(e)
+
+    def restyle(self):
+        """Aplica o tema atual com uma transição suave (foto da janela antiga sumindo)."""
+        overlay = None
+        if self.isVisible():
+            overlay = QLabel(self)
+            overlay.setPixmap(self.grab())
+            overlay.setGeometry(self.rect())
+            overlay.show()
+            overlay.raise_()
+        self._apply_style()
+        for tab in (self.lamps, self.scenes, self.routines, self.general):
+            tab.refresh()
+        if overlay is not None:
+            fx = QGraphicsOpacityEffect(overlay)
+            overlay.setGraphicsEffect(fx)
+            anim = QPropertyAnimation(fx, b"opacity", overlay)
+            anim.setDuration(280)
+            anim.setStartValue(1.0)
+            anim.setEndValue(0.0)
+            anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
+            anim.finished.connect(overlay.hide)
+            anim.finished.connect(overlay.deleteLater)
+            anim.start()
 
     def _on_state(self, *_):
         if self.isVisible():

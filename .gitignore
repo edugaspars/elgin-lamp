@@ -1,5 +1,5 @@
 # --- Dados sensíveis: NUNCA versionar ---
-# O app guarda tudo em %APPDATA%\ElginLamp (fora do projeto), mas por garantia:
+# O app guarda tudo em %APPDATA%\LampDesk (fora do projeto), mas por garantia:
 *.dat
 .key
 .env
@@ -30,3 +30,6 @@ dist/
 .idea/
 Thumbs.db
 .DS_Store
+
+# Versão gravada pelo build (calculada pelo Git)
+lampdesk/_version.py

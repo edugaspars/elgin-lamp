@@ -3,9 +3,9 @@ import sys
 
 import pytest
 
-from elgin_lamp import crypto
-from elgin_lamp.i18n import tr
-from elgin_lamp.storage import Config, Lamp, Location, Routine, Store, default_scenes
+from lampdesk import crypto
+from lampdesk.i18n import tr
+from lampdesk.storage import Config, Lamp, Location, Routine, Store, default_scenes
 
 
 def test_encrypt_roundtrip():
@@ -21,6 +21,18 @@ def test_config_file_never_contains_plaintext(tmp_path):
     raw = (tmp_path / "config.dat").read_bytes()
     for secret in (b"192.168.0.10", b"0123456789abcdef", b"bf1234567890abcdef", b"Sala"):
         assert secret not in raw
+
+
+def test_appearance_settings(tmp_path):
+    store = Store(tmp_path / "config.dat")
+    assert store.config.settings.theme == "dark"  # padrão
+    store.config.settings.theme = "light"
+    store.config.settings.reduce_transparency = True
+    store.save()
+    loaded = Store(tmp_path / "config.dat").load()
+    assert loaded.settings.theme == "light"
+    assert loaded.settings.reduce_transparency is True
+    assert Config.from_dict({"settings": {"theme": "neon"}}).settings.theme == "dark"
 
 
 def test_store_roundtrip(tmp_path):
@@ -66,3 +78,20 @@ def test_mask_hides_most_of_value():
     assert crypto.mask("0123456789abcdef").endswith("cdef")
     assert "0123" not in crypto.mask("0123456789abcdef")
     assert json.dumps(crypto.mask("")) == '""'
+
+
+def test_legacy_data_folder_is_moved(tmp_path, monkeypatch):
+    """Quem usava o app com o nome anterior não perde a configuração."""
+    from lampdesk import paths
+
+    monkeypatch.delenv("LAMPDESK_HOME", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setattr(paths.Path, "home", classmethod(lambda cls: tmp_path))
+    legacy = paths._default_dir(paths.LEGACY_APP_ID, paths.LEGACY_XDG_NAME)
+    legacy.mkdir(parents=True)
+    (legacy / "config.dat").write_bytes(b"dados")
+
+    new = paths.data_dir()
+    assert (new / "config.dat").read_bytes() == b"dados"
+    assert not legacy.exists()

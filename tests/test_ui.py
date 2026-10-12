@@ -28,8 +28,8 @@ def wait(qapp, cond, timeout=3.0):
 
 @pytest.fixture
 def app(qapp):
-    from elgin_lamp.app import ElginLampApp
-    a = ElginLampApp(qapp, demo=True)
+    from lampdesk.app import LampDeskApp
+    a = LampDeskApp(qapp, demo=True)
     yield a
     a.service.shutdown()
     a.popup.hide()
@@ -86,9 +86,52 @@ def test_settings_and_language_switch(qapp, app):
     assert app.tray.contextMenu().actions()
 
 
+def test_theme_switch(qapp, app):
+    from PySide6.QtCore import QRect
+    from PySide6.QtWidgets import QLabel
+    from lampdesk.ui import theme
+
+    app.open_settings("general")
+    win = app.settings_window
+    old_popup = app.popup
+    win.general.appearance.setCurrentIndex(1)  # Claro
+    assert theme.MODE == "light" and not theme.DARK
+    assert app.store.config.settings.theme == "light"
+    assert app.popup is not old_popup  # painel recriado com o tema novo
+    assert win.isVisible()  # configurações continuam abertas
+    # a foto usada na transição some ao fim da animação
+    assert wait(qapp, lambda: not [w for w in win.findChildren(QLabel) if w.graphicsEffect() and w.isVisible()])
+
+    win.general.reduce.setChecked(True)
+    assert not theme.TRANSPARENCY
+    app.popup.show_at(QRect(600, 580, 20, 20))
+    assert not app.popup.grab().isNull()  # pinta sem erro no tema claro, sem desfoque
+
+    win.general.appearance.setCurrentIndex(0)
+    win.general.reduce.setChecked(False)
+    assert theme.MODE == "dark" and theme.TRANSPARENCY
+
+
+def test_glass_veil_adapts_to_backdrop(qapp):
+    from PySide6.QtGui import QColor, QImage
+    from lampdesk.ui import glass, theme
+
+    def backdrop(color):
+        img = QImage(20, 20, QImage.Format.Format_RGB32)
+        img.fill(QColor(color))
+        return glass.with_luma(img)
+
+    theme.apply("dark")
+    assert glass.veil(backdrop("white")).alpha() > glass.veil(backdrop("black")).alpha()
+    theme.apply("light")
+    assert glass.veil(backdrop("black")).alpha() > glass.veil(backdrop("white")).alpha()
+    theme.apply("dark")
+    assert glass.grab_backdrop(QImage(1, 1, QImage.Format.Format_RGB32).rect()) is None  # offscreen: sem captura
+
+
 def test_routine_runs(qapp, app):
     import datetime as dt
-    from elgin_lamp.storage import Routine
+    from lampdesk.storage import Routine
 
     now = dt.datetime.now().astimezone()
     app.service.set_power(app.service.ids("*"), True)

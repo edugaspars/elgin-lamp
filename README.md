@@ -1,18 +1,20 @@
 <div align="center">
 
-# 💡 Elgin Lamp
+# 💡 LampDesk
 
-**Control your smart bulbs from the Windows system tray: instantly, over your local network, no cloud.**
+**Manage your Wi-Fi smart bulbs from the Windows system tray: instantly, over your local network, no cloud.**
+
+Works with bulbs from the Tuya/Smart Life ecosystem, such as **Elgin**, **Positivo** and dozens of other brands.
 
 **English** · [Português](README.pt-BR.md)
 
-[![CI](https://github.com/edugaspars/elgin-lamp/actions/workflows/ci.yml/badge.svg)](https://github.com/edugaspars/elgin-lamp/actions/workflows/ci.yml)
+[![CI](https://github.com/edugaspars/lampdesk/actions/workflows/ci.yml/badge.svg)](https://github.com/edugaspars/lampdesk/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
-<img src="docs/screenshot-en.png" width="360" alt="Elgin Lamp panel with the bulb in warm white">
-<img src="docs/screenshot-color-en.png" width="360" alt="Elgin Lamp panel in color mode">
+<img src="docs/screenshot-en.png" width="360" alt="LampDesk panel, dark theme, bulb in warm white">
+<img src="docs/screenshot-color-en.png" width="360" alt="LampDesk panel, light theme, color mode">
 
 </div>
 
@@ -22,17 +24,16 @@
 
 Smart bulbs are great until you need them **while you're at your computer**. Grab the phone, unlock it, open the app, wait for it to load… just to dim the lights for a meeting or a movie.
 
-**Elgin Lamp** puts your bulbs **one click away**, right next to the Windows clock. It talks **directly to the bulb over your Wi-Fi**: no cloud round-trip, no lag, and it keeps working when the internet is down.
+**LampDesk** puts your bulbs **one click away**, right next to the Windows clock. It talks **directly to the bulb over your Wi-Fi**: no cloud round-trip, no lag, and it keeps working when the internet is down.
 
 ## Who it's for
 
-- **Owners of Elgin Wi-Fi bulbs** (the *Elgin Smart* line, popular in Brazil) who spend the day at a PC.
-- **Anyone with a Tuya-based bulb**, such as those used with the *Smart Life* and *Tuya Smart* apps. The same technology powers dozens of brands worldwide.
+- **Anyone with a Tuya-based Wi-Fi bulb**: the ones that work with the *Smart Life* and *Tuya Smart* apps. The same technology powers dozens of brands worldwide, such as Elgin and Positivo in Brazil.
 - **People who work or game on a PC** and want to adjust the lights without reaching for the phone.
 - **Privacy-minded users** who'd rather not depend on third-party servers for everyday control.
 - **Tinkerers and developers** looking for a real-world Python tray app built on the local Tuya protocol.
 
-> No coding required: download the `.exe` and follow the steps below.
+> No coding required: download the latest release and follow the steps below.
 
 ## Features
 
@@ -41,6 +42,7 @@ Smart bulbs are great until you need them **while you're at your computer**. Gra
 | ⚡ **Real time** | Commands reach the bulb in milliseconds. Changes made through Alexa, the phone app or the wall switch show up in the panel instantly. |
 | 🎛️ **Full control** | Power, brightness, white temperature (warm ↔ cool) and color (RGB). |
 | 💡 **Multiple bulbs** | Control each bulb individually or all of them at once. |
+| 🫧 **Glass look** | Dark and light themes with a frosted-glass panel that blurs what's behind it and glows in the color of the bulb. Mica background on Windows 11, plus a *Reduce transparency* option. |
 | 🎬 **Scenes** | Reading, Relax, Focus, Night, Movie… plus your own. |
 | ⏰ **Routines** | By time and weekday, or at **sunrise/sunset** with a minute offset. |
 | 🌙 **Sleep timer** | "Turn off in 30 minutes". |
@@ -64,13 +66,13 @@ flowchart LR
     PC -.->|"once, to obtain the<br/>Local Key (QR code)"| CLOUD["☁️ Tuya cloud"]
 ```
 
-1. **Local protocol.** Elgin bulbs and other Tuya-platform bulbs accept commands on the local network (TCP port 6668), AES-encrypted with a per-bulb key called the **Local Key**. The app uses [tinytuya](https://github.com/jasonacox/tinytuya) to build those messages and supports protocol versions 3.1 to 3.5.
+1. **Local protocol.** Bulbs built on the Tuya platform accept commands on the local network (TCP port 6668), AES-encrypted with a per-bulb key called the **Local Key**. The app uses [tinytuya](https://github.com/jasonacox/tinytuya) to build those messages and supports protocol versions 3.1 to 3.5.
 2. **Live connection.** Each bulb keeps a connection open all the time, in its own thread:
    - commands are sent without waiting for a reply, so the panel updates instantly;
    - the bulb announces every state change, which keeps the app in sync with Alexa and the phone app;
    - a ping every 10 s keeps the connection alive, and it reconnects on its own if the network drops.
-3. **The Local Key.** It is created when the bulb is paired in the phone app and stored in the Tuya cloud. Elgin Lamp fetches it **only once**, through a QR code you scan in the Smart Life app. After that, the cloud is no longer used.
-4. **Your data.** The IP, Device ID and Local Key live in a single file under `%APPDATA%\ElginLamp`:
+3. **The Local Key.** It is created when the bulb is paired in the phone app and stored in the Tuya cloud. LampDesk fetches it **only once**, through a QR code you scan in the Smart Life app. After that, the cloud is no longer used.
+4. **Your data.** The IP, Device ID and Local Key live in a single file under `%APPDATA%\LampDesk`:
    - on Windows it is encrypted with **DPAPI**, so only your user account can open it;
    - on Linux it is encrypted with **Fernet (AES)**, with the key stored in the system keyring.
 
@@ -78,25 +80,38 @@ flowchart LR
 
 ### Windows (recommended)
 
-1. Go to **[Actions](https://github.com/edugaspars/elgin-lamp/actions/workflows/ci.yml)**, open the latest ✅ run and download the **ElginLamp-windows** artifact.
-2. Extract `ElginLamp.exe` to a permanent folder, for example `%LOCALAPPDATA%\Programs\ElginLamp`.
+1. Download `LampDesk.exe` from the **[latest release](https://github.com/edugaspars/lampdesk/releases/latest)**.
+2. Move it to a permanent folder, for example `%LOCALAPPDATA%\Programs\LampDesk`.
 3. Run it. If Windows SmartScreen warns you, click **More info › Run anyway** (the executable has no paid code signature).
 4. If the firewall asks, allow it on **Private networks**. This is what lets the app find bulbs on your network.
 
 The 💡 icon appears next to the clock. If it's hidden, click the **^** arrow and drag it onto the taskbar.
 
+> **Coming from Elgin Lamp?** That was this app's previous name. On first launch, LampDesk moves your settings over automatically (bulbs, scenes and routines) and updates *Start with system*. You can delete the old `ElginLamp.exe`.
+
+### Linux
+
+Download `LampDesk-linux-x86_64` from the **[latest release](https://github.com/edugaspars/lampdesk/releases/latest)**, then:
+
+```bash
+chmod +x LampDesk-linux-x86_64
+./LampDesk-linux-x86_64
+```
+
+On **GNOME**, the tray icon requires the *AppIndicator and KStatusNotifierItem Support* extension.
+
 <details>
-<summary><b>Build the .exe yourself</b></summary>
+<summary><b>Build the executable yourself</b></summary>
 
 Requires [Python 3.10+](https://www.python.org/downloads/).
 
 ```bat
-git clone https://github.com/edugaspars/elgin-lamp.git
-cd elgin-lamp
+git clone https://github.com/edugaspars/lampdesk.git
+cd lampdesk
 build_windows.bat
 ```
 
-The script creates a virtual environment, runs the tests and produces `dist\ElginLamp.exe`.
+The script creates a virtual environment, runs the tests and produces `dist\LampDesk.exe`. On Linux, `python scripts/build.py` produces `dist/LampDesk-linux-x86_64`.
 </details>
 
 <details>
@@ -104,8 +119,8 @@ The script creates a virtual environment, runs the tests and produces `dist\Elgi
 
 ```bash
 pip install -r requirements.txt
-python -m elgin_lamp          # on Windows, use pythonw to avoid a console window
-python -m elgin_lamp --demo   # simulated bulbs, to try the app
+python -m lampdesk          # on Windows, use pythonw to avoid a console window
+python -m lampdesk --demo   # simulated bulbs, to try the app
 ```
 
 On Linux with **GNOME**, the tray icon requires the *AppIndicator and KStatusNotifierItem Support* extension.
@@ -115,24 +130,24 @@ On Linux with **GNOME**, the tray icon requires the *AppIndicator and KStatusNot
 
 ### 1. The bulb must be in the Smart Life app
 
-QR-code sign-in works with **Smart Life** or **Tuya Smart** accounts. If your bulb is in the **Elgin app**, move it over (takes about 10 minutes):
+QR-code sign-in works with **Smart Life** or **Tuya Smart** accounts. If your bulb is in its **brand's own app** (Elgin Smart, for example), move it over (takes about 10 minutes):
 
-1. In the Elgin app, open the bulb and choose **Remove device**.
+1. In the brand's app, open the bulb and choose **Remove device**.
 2. Flip the wall switch off and on 3 times until the bulb **blinks quickly**.
 3. In **Smart Life**, tap **+ › Add device**, with the phone on **2.4 GHz** Wi-Fi.
 4. **Alexa/Google:** enable the **Smart Life** skill and ask it to discover devices.
 
-### 2. Add the bulb to Elgin Lamp
+### 2. Add the bulb to LampDesk
 
 1. Click the 💡 icon, then **Add lamp**.
 2. Use **Scan network** to fill in the IP and the Device ID.
 3. Click **I don't have the Local Key**:
    - in Smart Life, copy your **User Code** from *Me › ⚙ Settings › Account and Security*;
-   - paste it in Elgin Lamp and click **Generate QR code**;
+   - paste it in LampDesk and click **Generate QR code**;
    - in Smart Life, open the **Me** tab, tap the scanner icon (top right), scan and confirm on the phone.
 4. Click **Test connection**, then **Save**. Done!
 
-<img src="docs/settings-en.png" width="640" alt="Elgin Lamp settings">
+<img src="docs/settings-en.png" width="640" alt="LampDesk settings">
 
 > 💡 **Tip:** reserve a fixed IP for each bulb in your router (DHCP reservation). If the IP ever changes, **Scan network** updates the bulb you already added.
 
@@ -147,7 +162,7 @@ QR-code sign-in uses the same mechanism as Tuya's official **Home Assistant** in
    - pick the data center that matches your app account (*Western America* for Brazil and the US).
 3. Under **Devices › Link App Account**, scan the QR code with Smart Life.
 4. Copy the **Access ID** and **Access Secret** from the *Overview* tab.
-5. In Elgin Lamp, use **Settings › Lamps › Import from Tuya cloud**.
+5. In LampDesk, use **Settings › Lamps › Import from Tuya cloud**.
 
 Credentials are not saved.
 </details>
@@ -168,17 +183,17 @@ Credentials are not saved.
 For shortcuts and scripts, using the bulbs you've already added (no IPs or keys on the command line):
 
 ```bat
-python -m elgin_lamp.cli status
-python -m elgin_lamp.cli on --lamp "Living Room"
-python -m elgin_lamp.cli brightness 40
-python -m elgin_lamp.cli off
+python -m lampdesk.cli status
+python -m lampdesk.cli on --lamp "Living Room"
+python -m lampdesk.cli brightness 40
+python -m lampdesk.cli off
 ```
 
 > Many Tuya bulbs accept **only one local connection at a time**. While the app is open, the command line may not be able to connect.
 
 ## Privacy and security
 
-- **None of your data lives in the project.** Everything is in `%APPDATA%\ElginLamp\config.dat`, encrypted for your user account (DPAPI on Windows; Fernet + keyring on Linux).
+- **None of your data lives in the project.** Everything is in `%APPDATA%\LampDesk\config.dat`, encrypted for your user account (DPAPI on Windows; Fernet + keyring on Linux).
 - **No secrets in logs:** IDs are masked (`••••a9c3`), and IPs and keys are never logged.
 - **One-time Smart Life sign-in:** the session is closed right after the keys are fetched, and nothing from the account is stored.
 - **Leak protection in Git:**
@@ -197,20 +212,20 @@ python -m elgin_lamp.cli off
 | A routine didn't run | Routines run while the app is open: enable **Start with system**. After sleep, a routine still runs up to 10 minutes late. |
 | Works intermittently | Close other local integrations (Home Assistant/LocalTuya), since bulbs accept only a few simultaneous connections. |
 
-Logs are in `%APPDATA%\ElginLamp\elgin-lamp.log`. Use `--verbose` for detailed logging.
+Logs are in `%APPDATA%\LampDesk\lampdesk.log`. Use `--verbose` for detailed logging.
 
 ## For developers
 
 ```bash
-git clone https://github.com/edugaspars/elgin-lamp.git && cd elgin-lamp
+git clone https://github.com/edugaspars/lampdesk.git && cd lampdesk
 pip install -r requirements-dev.txt
 git config core.hooksPath .githooks      # enables the leak-blocking hook
-python -m pytest -q                      # 45 tests, including a simulated Tuya bulb over TCP
-python -m elgin_lamp --demo              # run without hardware
+python -m pytest -q                      # tests, including a simulated Tuya bulb over TCP
+python -m lampdesk --demo                # run without hardware
 ```
 
 ```
-elgin_lamp/
+lampdesk/
   app.py          tray, single instance, routines
   lamp.py         Tuya protocol: LiveBulb (live connection), TuyaBulb, simulated bulb
   service.py      bridge between the connections and the Qt UI
@@ -221,9 +236,20 @@ elgin_lamp/
   geo.py          offline city list + Windows location
   i18n.py         English / Portuguese
   cli.py          command line
-  ui/             panel, hand-painted widgets, settings, tray
+  version.py      version from Git tags
+  ui/             panel, glass theme, hand-painted widgets, settings, tray
+scripts/          build.py (PyInstaller), version.py, make_icon.py, check_secrets.py
 tests/            pytest, including fake_tuya.py (simulated Tuya 3.3 bulb)
 ```
+
+### Versioning and releases
+
+Versions follow `MAJOR.MINOR.PATCH` and are computed from Git tags, so nobody edits a version number by hand:
+
+- **every commit** after the last release adds 1 to the patch (`1.0.0` → `1.0.1` → `1.0.2`);
+- **every pull request merged into `main`** publishes a release with the next minor and resets the patch (`1.0.2` → `v1.1.0`).
+
+The [Release](.github/workflows/release.yml) workflow runs on the merge: it creates the `vX.Y.0` tag, builds `LampDesk.exe` and `LampDesk-linux-x86_64`, and attaches both to the GitHub release. `python scripts/version.py` shows the current version.
 
 ### Contributing
 
@@ -232,7 +258,7 @@ Contributions are welcome! Some ideas:
 - support for more Tuya device types (smart plugs, LED strips);
 - global keyboard shortcuts;
 - an installer (MSI/winget) and a code-signed executable;
-- more languages (see `elgin_lamp/i18n.py`).
+- more languages (see `lampdesk/i18n.py`).
 
 Open an issue describing the idea or the bug. Pull requests must pass CI (tests + secret scan).
 
@@ -242,7 +268,7 @@ Built with [tinytuya](https://github.com/jasonacox/tinytuya), [PySide6 (Qt)](htt
 
 ## Disclaimer
 
-This is an independent, unofficial project. **It is not affiliated with, endorsed by, or supported by Elgin S.A. or Tuya Inc.** "Elgin", "Tuya" and "Smart Life" are trademarks of their respective owners and are mentioned only to describe compatibility. Use at your own risk.
+This is an independent, unofficial project. **It is not affiliated with, endorsed by, or supported by Tuya Inc. or any bulb manufacturer.** "Tuya", "Smart Life", "Elgin", "Positivo" and other brand names are trademarks of their respective owners and are mentioned only to describe compatibility. Use at your own risk.
 
 ## License
 

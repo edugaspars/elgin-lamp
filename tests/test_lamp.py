@@ -2,8 +2,8 @@
 
 import tinytuya
 
-from elgin_lamp.lamp import LampState, TuyaBulb, display_rgb, rgb_from_hue, white_rgb
-from elgin_lamp.storage import Lamp, Scene
+from lampdesk.lamp import LampState, TuyaBulb, display_rgb, rgb_from_hue, white_rgb
+from lampdesk.storage import Lamp, Scene
 
 TYPE_B_STATUS = {"20": True, "21": "white", "22": 500, "23": 250, "24": "00f003e803e8", "25": "", "26": 0}
 

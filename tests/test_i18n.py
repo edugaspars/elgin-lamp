@@ -1,10 +1,10 @@
 import re
 from pathlib import Path
 
-from elgin_lamp import geo
-from elgin_lamp.i18n import STRINGS
+from lampdesk import geo
+from lampdesk.i18n import STRINGS
 
-PKG = Path(__file__).resolve().parents[1] / "elgin_lamp"
+PKG = Path(__file__).resolve().parents[1] / "lampdesk"
 
 
 def test_languages_have_same_keys():
