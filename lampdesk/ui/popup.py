@@ -12,7 +12,7 @@ from ..i18n import tr
 from ..lamp import LampState, display_rgb, rgb_from_hue
 from . import glass, icons, theme
 from .tray import style_menu
-from .widgets import BigSlider, BulbView, CircleButton, Fader, HeaderSelector, IconButton, Pill, PowerButton, Tile
+from .widgets import BigSlider, BulbView, Fader, HeaderSelector, IconButton, Pill, PowerButton, SquareButton, Tile
 
 WIDTH = 400
 SHADOW = 22
@@ -130,8 +130,8 @@ class Popup(QWidget):
 
         srow = QHBoxLayout()
         srow.setSpacing(10)
-        self.minus = CircleButton("minus")
-        self.plus = CircleButton("plus")
+        self.minus = SquareButton("minus")
+        self.plus = SquareButton("plus")
         self.slider = BigSlider()
         self.minus.clicked.connect(lambda: self.slider.step(-self._step()))
         self.plus.clicked.connect(lambda: self.slider.step(self._step()))
@@ -508,9 +508,14 @@ class Popup(QWidget):
         tri.closeSubpath()
         return path.united(tri)
 
-    def paintEvent(self, _):
+    def paintEvent(self, e):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        # repinturas parciais (um filho animando) não podem somar vidro translúcido sobre o que já estava
+        # no buffer: limpa a área antes, senão surgem retângulos mais escuros ou furos que mostram a tela
+        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        p.fillRect(e.rect(), Qt.GlobalColor.transparent)
+        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
         path = self._panel_path()
         p.setBrush(Qt.BrushStyle.NoBrush)
         outside = QPainterPath()

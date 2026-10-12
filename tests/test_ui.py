@@ -66,6 +66,23 @@ def test_popup_controls(qapp, app):
     assert popup.scene_pill.text() == app.store.config.scenes[0].name
 
 
+def test_popup_glass_paints_in_every_mode(qapp, app):
+    """Vidro líquido nos botões e repintura parcial do painel (aba de cores) sem erros."""
+    from PySide6.QtCore import QRect
+
+    popup = app.popup
+    popup.show_at(QRect(600, 580, 20, 20))
+    for mode in ("brightness", "temperature", "hue"):
+        popup._set_mode(mode)
+        qapp.processEvents()
+        assert not popup.grab().isNull()
+    popup.bulb.update()  # repintura só da lâmpada: o painel limpa a área antes de pintar
+    qapp.processEvents()
+    key = popup.bulb._key
+    popup.bulb.set_state(*key[:1], popup.bulb.color, key[2])  # mesmo estado: não repinta nem reanima
+    assert popup.bulb._key == key
+
+
 def test_sleep_timer(qapp, app):
     svc = app.service
     svc.start_timer("*", svc.ids("*"), 30)
