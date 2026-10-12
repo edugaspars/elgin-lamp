@@ -8,7 +8,7 @@ _current = "pt"
 
 STRINGS = {
     "pt": {
-        "app.tooltip": "Elgin Lamp",
+        "app.tooltip": "LampDesk",
         "lamp": "Lâmpada",
         "lamps": "Lâmpadas",
         "all_lamps": "Todas",
@@ -35,7 +35,8 @@ STRINGS = {
         "status.offline": "Sem conexão",
         "status.connecting": "Conectando…",
         "empty.title": "Nenhuma lâmpada ainda",
-        "empty.body": "Adicione sua lâmpada Elgin com o IP, o Device ID e o Local Key. "
+        "empty.body": "Adicione sua lâmpada Wi-Fi compatível com Smart Life/Tuya (Elgin, Positivo e outras) "
+                      "com o IP, o Device ID e o Local Key. "
                       "Tudo fica salvo criptografado só neste PC.",
         "empty.add": "Adicionar lâmpada",
         "tray.open": "Abrir painel",
@@ -84,7 +85,7 @@ STRINGS = {
         "scan.known": "já adicionada",
         "cloud.title": "Importar da nuvem Tuya",
         "cloud.intro": "Busca o nome e o Local Key de cada lâmpada na sua conta Tuya IoT Platform "
-                       "(conta vinculada ao app Smart Life / Elgin Smart). As credenciais abaixo "
+                       "(conta vinculada ao Smart Life ou ao app da marca da lâmpada). As credenciais abaixo "
                        "são usadas só agora e não são salvas.",
         "cloud.region": "Região do data center",
         "cloud.key": "Access ID / Client ID",
@@ -154,7 +155,7 @@ STRINGS = {
         "general.restart": "O idioma foi alterado.",
         "load_error": "Não foi possível ler a configuração salva (feita em outro usuário/PC?). "
                       "Uma cópia foi guardada e o app começou do zero.",
-        "already_running": "O Elgin Lamp já está aberto na bandeja.",
+        "already_running": "O LampDesk já está aberto na bandeja.",
         "no_tray": "A bandeja do sistema não está disponível.",
         "btn.smartlife": "Entrar com Smart Life",
         "lamp.get_key": "Não tenho o Local Key",
@@ -179,7 +180,7 @@ STRINGS = {
         "smartlife.key_filled": "Local Key preenchido! Clique em \"Testar conexão\".",
     },
     "en": {
-        "app.tooltip": "Elgin Lamp",
+        "app.tooltip": "LampDesk",
         "lamp": "Lamp",
         "lamps": "Lamps",
         "all_lamps": "All",
@@ -206,7 +207,8 @@ STRINGS = {
         "status.offline": "Offline",
         "status.connecting": "Connecting…",
         "empty.title": "No lamps yet",
-        "empty.body": "Add your Elgin lamp with its IP, Device ID and Local Key. "
+        "empty.body": "Add your Smart Life/Tuya Wi-Fi lamp (Elgin, Positivo and others) "
+                      "with its IP, Device ID and Local Key. "
                       "Everything is stored encrypted on this PC only.",
         "empty.add": "Add lamp",
         "tray.open": "Open panel",
@@ -254,7 +256,7 @@ STRINGS = {
         "scan.known": "already added",
         "cloud.title": "Import from Tuya cloud",
         "cloud.intro": "Fetches each lamp's name and Local Key from your Tuya IoT Platform account "
-                       "(linked to the Smart Life / Elgin Smart app). The credentials below are used "
+                       "(linked to Smart Life or your lamp brand's app). The credentials below are used "
                        "only now and are not saved.",
         "cloud.region": "Data center region",
         "cloud.key": "Access ID / Client ID",
@@ -324,7 +326,7 @@ STRINGS = {
         "general.restart": "Language changed.",
         "load_error": "Could not read the saved settings (created by another user/PC?). "
                       "A copy was kept and the app started fresh.",
-        "already_running": "Elgin Lamp is already running in the tray.",
+        "already_running": "LampDesk is already running in the tray.",
         "no_tray": "The system tray is not available.",
         "btn.smartlife": "Sign in with Smart Life",
         "lamp.get_key": "I don't have the Local Key",

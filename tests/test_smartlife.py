@@ -8,7 +8,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from elgin_lamp import discovery  # noqa: E402
+from lampdesk import discovery  # noqa: E402
 
 FAKE_KEY = "k3y!" * 4  # chave fictícia
 
@@ -80,7 +80,7 @@ def test_start_error(monkeypatch):
 
 def test_lamp_dialog_fills_key(fake_tuya, monkeypatch):
     from PySide6.QtWidgets import QApplication, QDialog
-    from elgin_lamp.ui import settings as S
+    from lampdesk.ui import settings as S
 
     app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(discovery, "scan_lan", lambda: [])

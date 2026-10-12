@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QColorDialog, QComb
                                QPushButton, QRadioButton, QSlider, QSpinBox, QTimeEdit,
                                QGraphicsOpacityEffect, QVBoxLayout, QWidget)
 
-from .. import APP_NAME, autostart, discovery, geo, scheduler
+from .. import APP_NAME, __version__, autostart, discovery, geo, scheduler
 from ..crypto import mask
 from ..i18n import LANGUAGES, current, tr
 from ..lamp import FakeBulb, TuyaBulb
@@ -989,6 +989,9 @@ class GeneralTab(QWidget):
         grid.addWidget(muted(tr("general.data_note")), 10, 0, 1, 2)
         grid.addWidget(button(tr("btn.open_folder"), self._open_folder), 11, 0)
         grid.setRowStretch(12, 1)
+        about = muted(f"{APP_NAME} v{__version__}", wrap=False)
+        about.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        grid.addWidget(about, 13, 0, 1, 2)
         self.refresh()
 
     def refresh(self):

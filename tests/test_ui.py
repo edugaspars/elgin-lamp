@@ -28,8 +28,8 @@ def wait(qapp, cond, timeout=3.0):
 
 @pytest.fixture
 def app(qapp):
-    from elgin_lamp.app import ElginLampApp
-    a = ElginLampApp(qapp, demo=True)
+    from lampdesk.app import LampDeskApp
+    a = LampDeskApp(qapp, demo=True)
     yield a
     a.service.shutdown()
     a.popup.hide()
@@ -89,7 +89,7 @@ def test_settings_and_language_switch(qapp, app):
 def test_theme_switch(qapp, app):
     from PySide6.QtCore import QRect
     from PySide6.QtWidgets import QLabel
-    from elgin_lamp.ui import theme
+    from lampdesk.ui import theme
 
     app.open_settings("general")
     win = app.settings_window
@@ -114,7 +114,7 @@ def test_theme_switch(qapp, app):
 
 def test_glass_veil_adapts_to_backdrop(qapp):
     from PySide6.QtGui import QColor, QImage
-    from elgin_lamp.ui import glass, theme
+    from lampdesk.ui import glass, theme
 
     def backdrop(color):
         img = QImage(20, 20, QImage.Format.Format_RGB32)
@@ -131,7 +131,7 @@ def test_glass_veil_adapts_to_backdrop(qapp):
 
 def test_routine_runs(qapp, app):
     import datetime as dt
-    from elgin_lamp.storage import Routine
+    from lampdesk.storage import Routine
 
     now = dt.datetime.now().astimezone()
     app.service.set_power(app.service.ids("*"), True)

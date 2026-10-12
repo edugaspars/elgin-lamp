@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("ELGIN_LAMP_HOME", str(ROOT / "build" / "tmp-home"))
+os.environ.setdefault("LAMPDESK_HOME", str(ROOT / "build" / "tmp-home"))
 
 
 def main():
@@ -17,7 +17,7 @@ def main():
     from PySide6.QtWidgets import QApplication
 
     app = QApplication([])  # QPixmap exige uma QApplication
-    from elgin_lamp.ui import icons
+    from lampdesk.ui import icons
 
     size = 256
     pm = QPixmap(size, size)

@@ -3,9 +3,9 @@ import sys
 
 import pytest
 
-from elgin_lamp import crypto
-from elgin_lamp.i18n import tr
-from elgin_lamp.storage import Config, Lamp, Location, Routine, Store, default_scenes
+from lampdesk import crypto
+from lampdesk.i18n import tr
+from lampdesk.storage import Config, Lamp, Location, Routine, Store, default_scenes
 
 
 def test_encrypt_roundtrip():
@@ -78,3 +78,20 @@ def test_mask_hides_most_of_value():
     assert crypto.mask("0123456789abcdef").endswith("cdef")
     assert "0123" not in crypto.mask("0123456789abcdef")
     assert json.dumps(crypto.mask("")) == '""'
+
+
+def test_legacy_data_folder_is_moved(tmp_path, monkeypatch):
+    """Quem usava o app com o nome anterior não perde a configuração."""
+    from lampdesk import paths
+
+    monkeypatch.delenv("LAMPDESK_HOME", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setattr(paths.Path, "home", classmethod(lambda cls: tmp_path))
+    legacy = paths._default_dir(paths.LEGACY_APP_ID, paths.LEGACY_XDG_NAME)
+    legacy.mkdir(parents=True)
+    (legacy / "config.dat").write_bytes(b"dados")
+
+    new = paths.data_dir()
+    assert (new / "config.dat").read_bytes() == b"dados"
+    assert not legacy.exists()

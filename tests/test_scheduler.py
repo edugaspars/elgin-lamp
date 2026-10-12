@@ -1,7 +1,7 @@
 import datetime as dt
 
-from elgin_lamp import scheduler
-from elgin_lamp.storage import Location, Routine
+from lampdesk import scheduler
+from lampdesk.storage import Location, Routine
 
 TZ = dt.timezone(dt.timedelta(hours=-3))
 SP = Location("São Paulo - SP", -23.5505, -46.6333)

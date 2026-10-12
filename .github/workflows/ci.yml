@@ -19,6 +19,8 @@ jobs:
       QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # tags, para calcular a versão
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -28,30 +30,9 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - name: Nenhum IP/chave no repositório
         run: python scripts/check_secrets.py --all
-      - run: python -m pyflakes elgin_lamp scripts tests
+      - run: python -m pyflakes lampdesk scripts tests
       - run: python -m pytest -q
 
-  build-windows:
+  build:
     needs: test
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: python -m pip install -r requirements-dev.txt
-      - run: python scripts/make_icon.py
-        env:
-          QT_QPA_PLATFORM: offscreen
-      - name: PyInstaller
-        run: >
-          pyinstaller --noconfirm --clean --onefile --windowed
-          --name ElginLamp --icon build/icon.ico --paths .
-          --collect-submodules tinytuya --collect-submodules tuya_sharing
-          --exclude-module tkinter --exclude-module PySide6.QtWebEngineCore
-          --exclude-module PySide6.QtQuick --exclude-module PySide6.Qt3DCore
-          elgin_lamp/__main__.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ElginLamp-windows
-          path: dist/ElginLamp.exe
+    uses: ./.github/workflows/build.yml

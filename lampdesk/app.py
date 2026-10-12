@@ -11,13 +11,13 @@ from PySide6.QtCore import QTimer
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
-from . import APP_ID, APP_NAME, __version__, scheduler
+from . import APP_ID, APP_NAME, __version__, autostart, scheduler
 from .i18n import set_language, tr
 from .paths import data_dir, log_file
 from .service import LampService
 from .storage import Lamp, Store, default_scenes
 
-log = logging.getLogger("elgin_lamp")
+log = logging.getLogger("lampdesk")
 
 
 def setup_logging(verbose: bool) -> None:
@@ -30,7 +30,7 @@ def setup_logging(verbose: bool) -> None:
     logging.getLogger("tinytuya").setLevel(logging.WARNING)
 
 
-class ElginLampApp:
+class LampDeskApp:
     def __init__(self, qapp: QApplication, demo: bool = False):
         self.qapp = qapp
         self.demo = demo
@@ -43,6 +43,11 @@ class ElginLampApp:
             self.store = Store()
             self.store.load()
         cfg = self.store.config
+        if not demo:
+            try:
+                autostart.migrate_legacy()
+            except OSError:
+                log.warning("Não foi possível migrar a inicialização automática", exc_info=True)
         set_language(cfg.settings.language)
         from .ui import theme
         theme.apply(cfg.settings.theme, not cfg.settings.reduce_transparency)
@@ -176,7 +181,7 @@ def _single_instance(name: str):
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(prog="elgin-lamp", description=f"{APP_NAME} {__version__}")
+    parser = argparse.ArgumentParser(prog="lampdesk", description=f"{APP_NAME} {__version__}")
     parser.add_argument("--demo", action="store_true", help="usa lâmpadas simuladas (sem rede)")
     parser.add_argument("--verbose", action="store_true", help="log detalhado")
     args = parser.parse_args(argv)
@@ -203,7 +208,7 @@ def main(argv=None) -> int:
 
     from .ui.tray import tray_icon
     qapp.setWindowIcon(tray_icon(True))
-    app = ElginLampApp(qapp, demo=args.demo)
+    app = LampDeskApp(qapp, demo=args.demo)
 
     def on_connection():
         conn = server.nextPendingConnection()

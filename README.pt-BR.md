@@ -1,18 +1,20 @@
 <div align="center">
 
-# 💡 Elgin Lamp
+# 💡 LampDesk
 
-**Controle suas lâmpadas inteligentes direto da bandeja do Windows: na hora, pela rede local e sem nuvem.**
+**Gerencie suas lâmpadas inteligentes Wi-Fi direto da bandeja do Windows: na hora, pela rede local e sem nuvem.**
+
+Funciona com lâmpadas do ecossistema Tuya/Smart Life, como **Elgin**, **Positivo** e dezenas de outras marcas.
 
 [English](README.md) · **Português**
 
-[![CI](https://github.com/edugaspars/elgin-lamp/actions/workflows/ci.yml/badge.svg)](https://github.com/edugaspars/elgin-lamp/actions/workflows/ci.yml)
+[![CI](https://github.com/edugaspars/lampdesk/actions/workflows/ci.yml/badge.svg)](https://github.com/edugaspars/lampdesk/actions/workflows/ci.yml)
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-green.svg)](LICENSE)
 ![Plataforma](https://img.shields.io/badge/plataforma-Windows%20%7C%20Linux-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
-<img src="docs/screenshot.png" width="360" alt="Painel do Elgin Lamp no tema escuro, com a lâmpada em branco quente">
-<img src="docs/screenshot-color.png" width="360" alt="Painel do Elgin Lamp no tema claro, no modo cor">
+<img src="docs/screenshot.png" width="360" alt="Painel do LampDesk no tema escuro, com a lâmpada em branco quente">
+<img src="docs/screenshot-color.png" width="360" alt="Painel do LampDesk no tema claro, no modo cor">
 
 </div>
 
@@ -22,17 +24,16 @@
 
 Lâmpadas inteligentes são ótimas até você precisar delas **no computador**. Pegar o celular, desbloquear, abrir o app, esperar carregar… só para diminuir a luz durante uma reunião ou um filme.
 
-O **Elgin Lamp** coloca suas lâmpadas a **um clique**, ao lado do relógio do Windows. Ele fala **diretamente com a lâmpada pela sua rede Wi-Fi**: sem passar pela nuvem, sem atraso e funcionando mesmo com a internet fora do ar.
+O **LampDesk** coloca suas lâmpadas a **um clique**, ao lado do relógio do Windows. Ele fala **diretamente com a lâmpada pela sua rede Wi-Fi**: sem passar pela nuvem, sem atraso e funcionando mesmo com a internet fora do ar.
 
 ## Para quem é
 
-- **Donos de lâmpadas Wi-Fi da Elgin** (linha Elgin Smart) que passam o dia no computador.
-- **Qualquer lâmpada baseada na plataforma Tuya**, como as dos apps *Smart Life* e *Tuya Smart*. É a mesma tecnologia de dezenas de marcas vendidas no Brasil e no mundo.
+- **Quem tem lâmpada Wi-Fi baseada na plataforma Tuya**: as que funcionam com os apps *Smart Life* e *Tuya Smart*. É a mesma tecnologia de dezenas de marcas vendidas no Brasil e no mundo, como Elgin e Positivo.
 - **Quem trabalha ou joga no PC** e quer ajustar a luz sem pegar o celular.
 - **Quem se preocupa com privacidade** e prefere que o controle diário não dependa de servidores de terceiros.
 - **Curiosos e desenvolvedores** que querem um exemplo real de app de bandeja em Python com protocolo Tuya local.
 
-> Não precisa saber programar: baixe o `.exe` e siga o passo a passo.
+> Não precisa saber programar: baixe a última versão e siga o passo a passo.
 
 ## Recursos
 
@@ -65,13 +66,13 @@ flowchart LR
     PC -.->|"só uma vez, para obter<br/>o Local Key (QR Code)"| CLOUD["☁️ Nuvem Tuya"]
 ```
 
-1. **Protocolo local.** Lâmpadas Elgin e outras da plataforma Tuya aceitam comandos pela rede local (porta TCP 6668), criptografados com AES usando uma chave própria de cada lâmpada, o **Local Key**. O app usa a biblioteca [tinytuya](https://github.com/jasonacox/tinytuya) para montar essas mensagens e é compatível com os protocolos 3.1 a 3.5.
+1. **Protocolo local.** Lâmpadas da plataforma Tuya aceitam comandos pela rede local (porta TCP 6668), criptografados com AES usando uma chave própria de cada lâmpada, o **Local Key**. O app usa a biblioteca [tinytuya](https://github.com/jasonacox/tinytuya) para montar essas mensagens e é compatível com os protocolos 3.1 a 3.5.
 2. **Conexão ao vivo.** Cada lâmpada tem uma conexão aberta o tempo todo, numa thread própria:
    - os comandos são enviados sem esperar resposta, e o painel muda na hora;
    - a lâmpada avisa quando muda de estado, o que mantém tudo sincronizado com a Alexa e o app do celular;
    - um "ping" a cada 10 s mantém a conexão viva, e ela se reconecta sozinha se a rede cair.
-3. **O Local Key.** Ele é criado quando a lâmpada é pareada no app do celular e fica guardado na nuvem da Tuya. O Elgin Lamp o busca **uma única vez**, com um QR Code escaneado no app Smart Life. Depois disso, a nuvem não é mais usada.
-4. **Seus dados.** IP, Device ID e Local Key ficam num único arquivo em `%APPDATA%\ElginLamp`:
+3. **O Local Key.** Ele é criado quando a lâmpada é pareada no app do celular e fica guardado na nuvem da Tuya. O LampDesk o busca **uma única vez**, com um QR Code escaneado no app Smart Life. Depois disso, a nuvem não é mais usada.
+4. **Seus dados.** IP, Device ID e Local Key ficam num único arquivo em `%APPDATA%\LampDesk`:
    - no Windows, ele é criptografado com o **DPAPI**, então só a sua conta de usuário consegue abri-lo;
    - no Linux, é criptografado com **Fernet (AES)**, com a chave guardada no chaveiro do sistema.
 
@@ -79,25 +80,38 @@ flowchart LR
 
 ### Windows (recomendado)
 
-1. Abra a aba **[Actions](https://github.com/edugaspars/elgin-lamp/actions/workflows/ci.yml)**, entre na execução mais recente com ✅ e baixe o artefato **ElginLamp-windows**.
-2. Extraia o `ElginLamp.exe` para uma pasta fixa, por exemplo `%LOCALAPPDATA%\Programs\ElginLamp`.
+1. Baixe o `LampDesk.exe` da **[última release](https://github.com/edugaspars/lampdesk/releases/latest)**.
+2. Mova-o para uma pasta fixa, por exemplo `%LOCALAPPDATA%\Programs\LampDesk`.
 3. Abra o `.exe`. Se o Windows SmartScreen avisar, clique em **Mais informações › Executar assim mesmo** (o executável não tem assinatura digital paga).
 4. Se o Firewall perguntar, permita em **Redes privadas**. É isso que permite encontrar as lâmpadas na rede.
 
 O ícone 💡 aparece perto do relógio. Se estiver escondido, clique na setinha **^** e arraste-o para a barra.
 
+> **Vindo do Elgin Lamp?** Esse era o nome anterior do app. Na primeira execução, o LampDesk traz suas configurações automaticamente (lâmpadas, cenas e rotinas) e atualiza o *Iniciar com o sistema*. Pode apagar o `ElginLamp.exe` antigo.
+
+### Linux
+
+Baixe o `LampDesk-linux-x86_64` da **[última release](https://github.com/edugaspars/lampdesk/releases/latest)** e rode:
+
+```bash
+chmod +x LampDesk-linux-x86_64
+./LampDesk-linux-x86_64
+```
+
+No **GNOME**, o ícone da bandeja precisa da extensão *AppIndicator and KStatusNotifierItem Support*.
+
 <details>
-<summary><b>Gerar o .exe você mesmo</b></summary>
+<summary><b>Gerar o executável você mesmo</b></summary>
 
 Requer [Python 3.10+](https://www.python.org/downloads/).
 
 ```bat
-git clone https://github.com/edugaspars/elgin-lamp.git
-cd elgin-lamp
+git clone https://github.com/edugaspars/lampdesk.git
+cd lampdesk
 build_windows.bat
 ```
 
-O script cria um ambiente virtual, roda os testes e gera `dist\ElginLamp.exe`.
+O script cria um ambiente virtual, roda os testes e gera `dist\LampDesk.exe`. No Linux, `python scripts/build.py` gera `dist/LampDesk-linux-x86_64`.
 </details>
 
 <details>
@@ -105,8 +119,8 @@ O script cria um ambiente virtual, roda os testes e gera `dist\ElginLamp.exe`.
 
 ```bash
 pip install -r requirements.txt
-python -m elgin_lamp          # no Windows, use pythonw para não abrir console
-python -m elgin_lamp --demo   # lâmpadas simuladas, para conhecer o app
+python -m lampdesk          # no Windows, use pythonw para não abrir console
+python -m lampdesk --demo   # lâmpadas simuladas, para conhecer o app
 ```
 
 No Linux com **GNOME**, o ícone da bandeja precisa da extensão *AppIndicator and KStatusNotifierItem Support*.
@@ -116,24 +130,24 @@ No Linux com **GNOME**, o ícone da bandeja precisa da extensão *AppIndicator a
 
 ### 1. A lâmpada precisa estar no app Smart Life
 
-O login por QR Code funciona com contas do **Smart Life** ou do **Tuya Smart**. Se a sua lâmpada está no **app da Elgin**, mova-a (leva uns 10 minutos):
+O login por QR Code funciona com contas do **Smart Life** ou do **Tuya Smart**. Se a sua lâmpada está no **app da própria marca** (Elgin Smart, por exemplo), mova-a (leva uns 10 minutos):
 
-1. No app da Elgin, abra a lâmpada e escolha **Remover dispositivo**.
+1. No app da marca, abra a lâmpada e escolha **Remover dispositivo**.
 2. Ligue e desligue a lâmpada no interruptor 3 vezes, até ela **piscar rápido**.
 3. No **Smart Life**, toque em **+ › Adicionar dispositivo**, com o celular no Wi-Fi **2,4 GHz**.
 4. **Alexa/Google:** ative a skill **Smart Life** e peça para descobrir dispositivos.
 
-### 2. Adicione a lâmpada no Elgin Lamp
+### 2. Adicione a lâmpada no LampDesk
 
 1. Clique no ícone 💡 e depois em **Adicionar lâmpada**.
 2. Use **Buscar na rede** para preencher o IP e o Device ID.
 3. Clique em **Não tenho o Local Key**:
    - no Smart Life, copie seu **Código do usuário** em *Eu › ⚙ Configurações › Conta e segurança*;
-   - cole o código no Elgin Lamp e clique em **Gerar QR Code**;
+   - cole o código no LampDesk e clique em **Gerar QR Code**;
    - no Smart Life, abra a aba **Eu**, toque no ícone de leitor (canto superior direito), escaneie e confirme no celular.
 4. Clique em **Testar conexão** e depois em **Salvar**. Pronto!
 
-<img src="docs/settings.png" width="640" alt="Configurações do Elgin Lamp">
+<img src="docs/settings.png" width="640" alt="Configurações do LampDesk">
 
 > 💡 **Dica:** reserve um IP fixo para cada lâmpada no seu roteador (reserva DHCP). Se o IP mudar, **Buscar na rede** atualiza a lâmpada já cadastrada.
 
@@ -148,7 +162,7 @@ O login por QR Code usa o mesmo mecanismo da integração oficial da Tuya no **H
    - Data Center **Western America** para contas do Brasil.
 3. Em **Devices › Link App Account**, escaneie o QR Code com o Smart Life.
 4. Copie o **Access ID** e o **Access Secret** da aba *Overview*.
-5. No Elgin Lamp, use **Configurações › Lâmpadas › Importar da nuvem Tuya** (região `us`).
+5. No LampDesk, use **Configurações › Lâmpadas › Importar da nuvem Tuya** (região `us`).
 
 As credenciais não são salvas.
 </details>
@@ -169,17 +183,17 @@ As credenciais não são salvas.
 Para atalhos e scripts, usando as lâmpadas já cadastradas (sem digitar IP nem chave):
 
 ```bat
-python -m elgin_lamp.cli status
-python -m elgin_lamp.cli on --lamp Sala
-python -m elgin_lamp.cli brightness 40
-python -m elgin_lamp.cli off
+python -m lampdesk.cli status
+python -m lampdesk.cli on --lamp Sala
+python -m lampdesk.cli brightness 40
+python -m lampdesk.cli off
 ```
 
 > Muitas lâmpadas Tuya aceitam **uma conexão local por vez**. Com o app aberto, a linha de comando pode não conseguir conectar.
 
 ## Privacidade e segurança
 
-- **Nenhum dado seu fica no projeto.** Tudo fica em `%APPDATA%\ElginLamp\config.dat`, criptografado para a sua conta de usuário (DPAPI no Windows; Fernet + keyring no Linux).
+- **Nenhum dado seu fica no projeto.** Tudo fica em `%APPDATA%\LampDesk\config.dat`, criptografado para a sua conta de usuário (DPAPI no Windows; Fernet + keyring no Linux).
 - **Logs sem segredos:** os IDs aparecem mascarados (`••••a9c3`), e IP e chaves nunca são registrados.
 - **Login no Smart Life só uma vez:** a sessão é encerrada logo após buscar as chaves, e nada da conta é salvo.
 - **Proteção contra vazamentos no Git:**
@@ -198,20 +212,20 @@ python -m elgin_lamp.cli off
 | Rotina não rodou | As rotinas rodam com o app aberto: ative **Iniciar com o sistema**. Depois de uma suspensão, a rotina ainda roda em até 10 minutos. |
 | Funciona às vezes | Feche outras integrações locais (Home Assistant/LocalTuya), porque a lâmpada aceita poucas conexões ao mesmo tempo. |
 
-Os logs ficam em `%APPDATA%\ElginLamp\elgin-lamp.log`. Para log detalhado, use `--verbose`.
+Os logs ficam em `%APPDATA%\LampDesk\lampdesk.log`. Para log detalhado, use `--verbose`.
 
 ## Para desenvolvedores
 
 ```bash
-git clone https://github.com/edugaspars/elgin-lamp.git && cd elgin-lamp
+git clone https://github.com/edugaspars/lampdesk.git && cd lampdesk
 pip install -r requirements-dev.txt
 git config core.hooksPath .githooks      # ativa o bloqueio de vazamentos
-python -m pytest -q                      # 45 testes, inclui uma lâmpada Tuya simulada por TCP
-python -m elgin_lamp --demo              # roda sem hardware
+python -m pytest -q                      # testes, inclui uma lâmpada Tuya simulada por TCP
+python -m lampdesk --demo                # roda sem hardware
 ```
 
 ```
-elgin_lamp/
+lampdesk/
   app.py          bandeja, instância única, rotinas
   lamp.py         protocolo Tuya: LiveBulb (conexão ao vivo), TuyaBulb, lâmpada simulada
   service.py      ponte entre as conexões e a interface Qt
@@ -222,9 +236,20 @@ elgin_lamp/
   geo.py          cidades offline + localização do Windows
   i18n.py         português / inglês
   cli.py          linha de comando
-  ui/             painel, componentes desenhados à mão, configurações, bandeja
+  version.py      versão calculada pelas tags do Git
+  ui/             painel, tema de vidro, componentes desenhados à mão, configurações, bandeja
+scripts/          build.py (PyInstaller), version.py, make_icon.py, check_secrets.py
 tests/            pytest, incluindo fake_tuya.py (lâmpada Tuya 3.3 simulada)
 ```
+
+### Versões e releases
+
+As versões seguem `MAIOR.MENOR.PATCH` e são calculadas pelas tags do Git, então ninguém edita número de versão à mão:
+
+- **cada commit** depois da última release soma 1 no patch (`1.0.0` → `1.0.1` → `1.0.2`);
+- **cada pull request mergeado na `main`** publica uma release com o próximo menor e zera o patch (`1.0.2` → `v1.1.0`).
+
+O workflow [Release](.github/workflows/release.yml) roda no merge: cria a tag `vX.Y.0`, gera o `LampDesk.exe` e o `LampDesk-linux-x86_64` e anexa os dois à release do GitHub. `python scripts/version.py` mostra a versão atual.
 
 ### Contribuindo
 
@@ -233,7 +258,7 @@ Contribuições são bem-vindas! Algumas ideias:
 - suporte a mais tipos de dispositivo Tuya (tomadas, fitas LED);
 - atalhos de teclado globais;
 - instalador (MSI/winget) e assinatura do executável;
-- mais idiomas (veja `elgin_lamp/i18n.py`).
+- mais idiomas (veja `lampdesk/i18n.py`).
 
 Abra uma *issue* descrevendo a ideia ou o problema. Pull requests precisam passar no CI (testes + verificação de segredos).
 
@@ -243,7 +268,7 @@ Construído com [tinytuya](https://github.com/jasonacox/tinytuya), [PySide6 (Qt)
 
 ## Aviso
 
-Projeto independente e não oficial. **Não é afiliado, endossado ou suportado pela Elgin S.A. nem pela Tuya Inc.** "Elgin", "Tuya" e "Smart Life" são marcas de seus respectivos donos e são citadas apenas para identificar a compatibilidade. Use por sua conta e risco.
+Projeto independente e não oficial. **Não é afiliado, endossado ou suportado pela Tuya Inc. nem por nenhum fabricante de lâmpadas.** "Tuya", "Smart Life", "Elgin", "Positivo" e outros nomes de marcas são marcas de seus respectivos donos e são citadas apenas para identificar a compatibilidade. Use por sua conta e risco.
 
 ## Licença
 
