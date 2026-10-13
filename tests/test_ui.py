@@ -93,14 +93,27 @@ def test_popup_repaints_when_only_the_colour_changes(qapp, app):
 
 
 def test_tile_value_fits_inside_the_card(qapp):
-    """"Desligado" no card Timer não pode encostar na borda direita (margem de 13 px dos dois lados)."""
+    """"Desligado" no card Timer não pode encostar na borda direita (margem de 13 px dos dois lados).
+
+    As larguras saem das métricas da própria fonte: no CI do Windows (offscreen) as letras medem bem
+    mais que no Linux, então um número fixo de pixels não serve para os dois.
+    """
     from PySide6.QtGui import QFont, QFontMetrics
+    from lampdesk.ui import theme
     from lampdesk.ui.widgets import fit_font
 
-    avail = 88 - 26  # largura típica do card no painel
-    font = fit_font("Desligado", avail, QFont.Weight.DemiBold)
+    bold = QFont.Weight.DemiBold
+
+    def advance(text, size):
+        return QFontMetrics(theme.font(size, bold)).horizontalAdvance(text)
+
+    # cabe a 12 px: escolhe 12 (ou maior, se também couber) e o texto fica dentro da margem
+    avail = advance("Desligado", 12) + 2
+    font = fit_font("Desligado", avail, bold)
+    assert font.pixelSize() >= 12
     assert QFontMetrics(font).horizontalAdvance("Desligado") <= avail
-    assert fit_font("100%", avail, QFont.Weight.DemiBold).pixelSize() == 14  # texto curto mantém o tamanho
+    assert fit_font("100%", advance("100%", 14) + 2, bold).pixelSize() == 14  # texto curto mantém o tamanho
+    assert fit_font("Desligado", 10, bold).pixelSize() == 11  # nada cabe: a menor (o card elide o resto)
 
 
 def test_sleep_timer(qapp, app):
