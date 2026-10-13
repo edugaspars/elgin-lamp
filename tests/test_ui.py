@@ -257,3 +257,25 @@ def test_focus_button_in_panel(qapp, app):
 def tr_focus():
     from lampdesk.i18n import tr
     return tr("mode.focus")
+
+
+def test_room_prompt_and_panel_start(qapp, app):
+    from lampdesk.storage import Group
+    from lampdesk.ui.popup import Popup
+    cfg = app.store.config
+    ids = [l.id for l in cfg.lamps]
+    cfg.groups.append(Group("Escritório", ids[:1], id="office"))
+    app._ask_room()
+    d = app._room_dialog
+    assert d is not None
+    d.combo.set_value(["office"])
+    d.accept()
+    assert cfg.settings.room == ["office"] and cfg.settings.room_asked
+    assert app.popup.selection == "office"
+    app._ask_room()
+    assert app._room_dialog is None  # só pergunta uma vez
+    p = Popup(app.store, app.service, app.automation)  # ao abrir o app, o painel já mostra o ambiente
+    assert p.selection == "office"
+    p.deleteLater()
+    app.open_settings("automations")
+    assert app.settings_window.automations.room.value() == ["office"]

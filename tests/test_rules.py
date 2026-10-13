@@ -145,3 +145,18 @@ def test_screen_mood():
     logo = [(255, 0, 0)] * 3 + [(120, 120, 120)] * 97                # logo pequeno num menu cinza
     assert R.screen_mood(logo)[0] == "dark"
     assert R.screen_mood([]) == ("dark", 0)
+
+
+def test_room_target_resolves_to_this_pcs_room():
+    from lampdesk.storage import ROOM
+    cfg = Config(lamps=[Lamp("A", "1", "192.0.2.1", "k", id="a"), Lamp("B", "2", "192.0.2.2", "k", id="b")])
+    cfg.groups.append(Group("Escritório", ["a"], id="g"))
+    assert [l.id for l in cfg.resolve_targets([ROOM])] == ["a", "b"]  # sem ambiente: todas
+    cfg.settings.room = ["g"]
+    assert [l.id for l in cfg.resolve_targets([ROOM])] == ["a"]
+    assert cfg.target_name([ROOM], "Todas", "Ambiente deste PC") == "Ambiente deste PC (Escritório)"
+    assert Rule("r").targets == [ROOM]  # automações novas nascem no ambiente
+    cfg.forget("g")
+    assert cfg.settings.room == ["*"]
+    back = Config.from_dict({"settings": {"room": ["g", ROOM]}})
+    assert back.settings.room == ["g"]  # o ambiente nunca aponta para si mesmo

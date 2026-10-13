@@ -75,6 +75,9 @@ class LampDeskApp:
         self._build_ui()
         self.automation.changed.connect(self._state_changed)
         QTimer.singleShot(6000, self.automation.startup)  # depois que as lâmpadas conectam
+        self._room_dialog = None
+        if not demo:
+            QTimer.singleShot(1500, self._ask_room)
 
         self._routine_timer = QTimer(interval=20_000)
         self._routine_timer.timeout.connect(self.run_routines)
@@ -146,9 +149,36 @@ class LampDeskApp:
     def _config_changed(self):
         self.service.reload()
         self.automation.reload()
+        if not self.demo and not self.store.config.settings.room_asked:
+            QTimer.singleShot(800, self._ask_room)  # acabou de cadastrar as lâmpadas
         self.tray.update_state()
         if self.popup.isVisible():
             self.popup.update_view()
+
+    def _ask_room(self):
+        """Pergunta uma vez em qual ambiente fica este PC (as automações valem só para ele)."""
+        s = self.store.config.settings
+        if s.room_asked or len(self.store.config.lamps) < 2 or self._room_dialog is not None:
+            return
+        from .ui.automations import RoomDialog
+
+        parent = self.settings_window if self.settings_window and self.settings_window.isVisible() else None
+        d = self._room_dialog = RoomDialog(parent, self)
+
+        def done(result):
+            self._room_dialog = None
+            s.room_asked = True
+            if result:
+                s.room = d.value()
+                if s.room != ["*"]:
+                    self.popup.selection = s.room[0]
+            self.store.save()
+            self.automation.reload()
+            if self.settings_window:
+                self.settings_window.automations.refresh()
+            d.deleteLater()
+        d.finished.connect(done)
+        d.open()
 
     def _version_detected(self, lamp_id: str, version: str):
         lamp = self.store.config.lamp(lamp_id)

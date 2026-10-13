@@ -194,7 +194,7 @@ Em **Configurações › Automações** cada regra tem três partes:
 - **Se:** dias da semana, só entre dois horários, só quando estiver escuro, só com o modo Discord ligado.
 - **Então:** ligar, desligar, cena, cor, brilho, piscar, acender/apagar aos poucos, desligar depois (timer da própria lâmpada), pomodoro, ligar/desligar modos.
 
-A aba já vem com exemplos desligados: é só marcar e escolher o grupo. Regras que duram (PC bloqueado, tela cheia) voltam a luz ao que era quando terminam, e **mexer na luz à mão sempre vence**: a automação não desfaz o que você mudou.
+No primeiro uso o app pergunta o **ambiente deste PC** (ex.: o grupo Escritório): automações e recursos valem só para essas lâmpadas, não para a casa toda (dá para mudar no topo da aba). A aba já vem com exemplos desligados: é só marcar. Regras que duram (PC bloqueado, tela cheia) voltam a luz ao que era quando terminam, e **mexer na luz à mão sempre vence**: a automação não desfaz o que você mudou.
 
 - **Apagar depois de desligar o PC:** o app pede à lâmpada para se desligar sozinha em N minutos (o mesmo timer do app Smart Life), então funciona mesmo com o PC desligado. Se o PC ligar de novo antes, o pedido é cancelado.
 - **Discord e outros apps:** o app lê as notificações que o Windows mostra no canto da tela. Canais silenciados no Discord não geram notificação e não piscam. A aba **Diagnóstico** mostra a última notificação lida e permite simular uma.

@@ -19,7 +19,7 @@ from PySide6.QtCore import QAbstractNativeEventFilter, QObject, Qt, QTimer, Sign
 from . import rules as R
 from . import scheduler, winsys
 from .lamp import LampState
-from .storage import REACTIVE_MODES, Rule, Scene
+from .storage import REACTIVE_MODES, ROOM, Rule, Scene
 
 log = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ def default_rules(tr, cfg) -> List[Rule]:
     ]
 
 
-RULES_VERSION = 4
+RULES_VERSION = 5
 
 
 def upgrade_rules(cfg) -> bool:
@@ -109,6 +109,13 @@ def upgrade_rules(cfg) -> bool:
         from .i18n import tr
         cfg.scenes.append(Scene(tr("scene.music"), "cover", 100, 50))  # cena Música (capa do álbum)
         changed = True
+    if cfg.settings.rules_version < 5:
+        # automações e recursos em "Todas" passam a valer só no ambiente deste PC
+        s = cfg.settings
+        for holder in [*cfg.rules, s.circadian, s.music, s.pomodoro, s.focus]:
+            if holder.targets == ["*"]:
+                holder.targets = [ROOM]
+                changed = True
     if cfg.settings.rules_version != RULES_VERSION:
         cfg.settings.rules_version = RULES_VERSION
         changed = True

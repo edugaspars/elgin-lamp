@@ -43,7 +43,9 @@ class Popup(QWidget):
         self.store = store
         self.service = service
         self.automation = automation
-        self.selection = store.config.settings.last_selected or "*"
+        room = store.config.settings.room
+        # abre no ambiente deste PC; sem ambiente escolhido, na última seleção
+        self.selection = room[0] if room != ["*"] else (store.config.settings.last_selected or "*")
         self.slider_mode = "brightness"
         self.last_scene = ""
         self._arrow_up = False

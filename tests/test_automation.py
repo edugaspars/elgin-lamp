@@ -529,3 +529,16 @@ def test_music_scene_uses_current_track_immediately(env):
     auto._cover_rgb = (255, 140, 0)                      # já estava tocando
     svc.apply_scene(["b"], Scene("Música", "cover", 100, 50))
     assert wait(qapp, lambda: svc.state("b").mode == "colour" and svc.state("b").brightness == 100)
+
+
+def test_upgrade_moves_all_lamps_automations_to_the_room(qapp):
+    from lampdesk.automation import upgrade_rules
+    from lampdesk.storage import ROOM, Config, Rule, Routine, Scene
+    cfg = Config(rules=[Rule("a", targets=["*"]), Rule("b", targets=["g1"])], routines=[Routine("r")],
+                 scenes=[Scene("Música", "cover")])
+    cfg.settings.circadian.targets = ["*"]
+    cfg.settings.rules_version = 4
+    assert upgrade_rules(cfg)
+    assert cfg.rules[0].targets == [ROOM] and cfg.rules[1].targets == ["g1"]  # escolha específica fica
+    assert cfg.settings.circadian.targets == [ROOM]
+    assert cfg.routines[0].targets == ["*"]  # rotinas continuam na casa toda

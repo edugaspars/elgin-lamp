@@ -194,7 +194,7 @@ In **Settings › Automations** each rule has three parts:
 - **If:** weekdays, only between two times, only when it's dark, only with Discord mode on.
 - **Then:** turn on, turn off, scene, color, brightness, blink, fade in/out, turn off later (the bulb's own timer), pomodoro, toggle modes.
 
-The tab comes with disabled examples: just check one and pick the group. Lasting rules (PC locked, fullscreen) put the light back when they end, and **changing the light by hand always wins**: automations don't undo what you changed.
+On first use the app asks for **this PC's room** (e.g. the Office group): automations and features only change those lamps, not the whole house (you can change it at the top of the tab). The tab comes with disabled examples: just check one. Lasting rules (PC locked, fullscreen) put the light back when they end, and **changing the light by hand always wins**: automations don't undo what you changed.
 
 - **Turn off after the PC shuts down:** the app asks the bulb to switch itself off in N minutes (the same timer as in the Smart Life app), so it works with the PC off. If the PC turns back on first, the request is cancelled.
 - **Discord and other apps:** the app reads the notifications Windows shows in the corner of the screen. Muted Discord channels create no notification and don't blink. The **Diagnostics** tab shows the last notification read and lets you simulate one.

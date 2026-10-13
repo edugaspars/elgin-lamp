@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDateEdit, QF
 
 from .. import rules as R
 from ..i18n import tr
-from ..storage import Rule
+from ..storage import ROOM, Rule
 from .settings import _Dialog, button, confirm, days_text, muted, swatch
 from .widgets import SegmentedTabs
 
@@ -36,10 +36,12 @@ def row_widget(*widgets, stretch=True) -> QWidget:
 
 
 class TargetCombo(QComboBox):
-    """Todas / grupos / lâmpadas (uma escolha)."""
+    """Ambiente deste PC / Todas / grupos / lâmpadas (uma escolha)."""
 
-    def __init__(self, cfg, targets):
+    def __init__(self, cfg, targets, room: bool = True):
         super().__init__()
+        if room:
+            self.addItem(cfg.target_name([ROOM], tr("all_lamps"), tr("room.label")), ROOM)
         self.addItem(tr("all_lamps"), "*")
         for g in cfg.groups:
             self.addItem(f"{tr('group')}: {g.name}", g.id)
@@ -50,6 +52,12 @@ class TargetCombo(QComboBox):
     def set_value(self, targets):
         key = targets[0] if len(targets) == 1 else "*"
         self.setCurrentIndex(max(0, self.findData(key)))
+
+    def update_room_label(self, cfg):
+        """O nome do ambiente aparece entre parênteses: atualiza quando ele muda."""
+        i = self.findData(ROOM)
+        if i >= 0:
+            self.setItemText(i, cfg.target_name([ROOM], tr("all_lamps"), tr("room.label")))
 
     def value(self):
         return [self.currentData() or "*"]
@@ -120,7 +128,7 @@ def describe_rule(cfg, r: Rule) -> str:
         action += f": {cfg.scene(r.scene_id).name}"
     elif r.action in ("fade_in", "fade_out", "off_later"):
         action += f" ({r.minutes} min)"
-    targets = cfg.target_name(r.targets, tr("all_lamps"))
+    targets = cfg.target_name(r.targets, tr("all_lamps"), tr("room.label"))
     return f"{r.name}\n{' · '.join(parts)} → {action} · {targets}"
 
 
@@ -619,6 +627,8 @@ class FeaturesPage(QScrollArea):
         s = self.cfg.settings
         for w in self._widgets():
             w.blockSignals(True)
+        for combo in self.findChildren(TargetCombo):
+            combo.update_room_label(self.cfg)
         f = s.focus
         self.focus_on.setChecked(f.active)
         self.focus_targets.set_value(f.targets)
@@ -771,12 +781,54 @@ class DiagnosticsPage(QWidget):
         self.refresh()
 
 
+class RoomDialog(_Dialog):
+    """Em qual ambiente fica este PC? As automações valem só para essas lâmpadas."""
+
+    def __init__(self, parent, win):
+        super().__init__(parent, tr("room.title"))
+        self.win = win
+        self.body.addWidget(muted(tr("room.note")))
+        form = QFormLayout()
+        self.combo = TargetCombo(win.store.config, win.store.config.settings.room, room=False)
+        form.addRow(tr("room.label"), self.combo)
+        self.body.addLayout(form)
+        groups = button(tr("groups.button"), self._groups)
+        self.add_buttons(extra=[groups])
+
+    def _groups(self):
+        from .settings import GroupsDialog
+        GroupsDialog(self, self.win).exec()
+        current = self.combo.value()
+        cfg = self.win.store.config
+        self.combo.clear()
+        self.combo.addItem(tr("all_lamps"), "*")
+        for g in cfg.groups:
+            self.combo.addItem(f"{tr('group')}: {g.name}", g.id)
+        for l in cfg.lamps:
+            self.combo.addItem(l.name, l.id)
+        if cfg.groups and current == ["*"]:
+            self.combo.setCurrentIndex(1)  # acabou de criar um grupo: já sugere
+        else:
+            self.combo.set_value(current)
+
+    def value(self):
+        return self.combo.value()
+
+
 class AutomationsTab(QWidget):
     def __init__(self, win):
         super().__init__()
         self.win = win
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 10, 0, 0)
+        room_row = QHBoxLayout()
+        room_row.addWidget(QLabel(tr("room.label")))
+        self.room = TargetCombo(win.store.config, win.store.config.settings.room, room=False)
+        self.room.setMinimumWidth(220)
+        self.room.currentIndexChanged.connect(self._room_changed)
+        room_row.addWidget(self.room)
+        room_row.addWidget(muted(tr("room.hint")), 1)
+        v.addLayout(room_row)
         self.tabs = SegmentedTabs()
         self.rules = RulesPage(self)
         self.features = FeaturesPage(self)
@@ -788,5 +840,20 @@ class AutomationsTab(QWidget):
         self.refresh()
 
     def refresh(self):
+        cfg = self.win.store.config
+        self.room.blockSignals(True)
+        self.room.clear()
+        self.room.addItem(tr("all_lamps"), "*")
+        for g in cfg.groups:
+            self.room.addItem(f"{tr('group')}: {g.name}", g.id)
+        for l in cfg.lamps:
+            self.room.addItem(l.name, l.id)
+        self.room.set_value(cfg.settings.room)
+        self.room.blockSignals(False)
         self.rules.refresh()
         self.features.refresh()
+
+    def _room_changed(self):
+        s = self.win.store.config.settings
+        s.room, s.room_asked = self.room.value(), True
+        self.win.changed()

@@ -15,7 +15,8 @@ from .paths import config_file
 log = logging.getLogger(__name__)
 
 PROTOCOL_VERSIONS = ["auto", "3.3", "3.4", "3.5", "3.1"]
-REACTIVE_MODES = ("screen", "cover")  # cenas que acompanham a tela ou a música (ver automation)
+REACTIVE_MODES = ("screen", "cover")
+ROOM = "@room"  # alvo "Ambiente deste PC": as lâmpadas escolhidas em Settings.room  # cenas que acompanham a tela ou a música (ver automation)
 
 
 def new_id() -> str:
@@ -96,7 +97,7 @@ class Rule:
     value: int = 10               # "brightness" (%) | "brightness_step" (±%)
     restore: str = "previous"     # gatilhos de estado, ao terminar: "previous" | "scene" | "none"
     restore_scene: str = ""
-    targets: List[str] = field(default_factory=lambda: ["*"])
+    targets: List[str] = field(default_factory=lambda: [ROOM])
     enabled: bool = True
     id: str = field(default_factory=new_id)
 
@@ -104,7 +105,7 @@ class Rule:
 @dataclass
 class Circadian:
     enabled: bool = False
-    targets: List[str] = field(default_factory=lambda: ["*"])
+    targets: List[str] = field(default_factory=lambda: [ROOM])
     brightness: bool = True       # também ajusta o brilho (não só a temperatura)
     night_brightness: int = 40
 
@@ -113,7 +114,7 @@ class Circadian:
 class Music:
     enabled: bool = False
     source: str = "cover"         # "cover" (capa do álbum) | "screen" (cor da tela)
-    targets: List[str] = field(default_factory=lambda: ["*"])
+    targets: List[str] = field(default_factory=lambda: [ROOM])
     brightness: int = 80
 
 
@@ -123,7 +124,7 @@ class Pomodoro:
     short_min: int = 5
     long_min: int = 15
     every: int = 4                # pausa longa a cada N focos
-    targets: List[str] = field(default_factory=lambda: ["*"])
+    targets: List[str] = field(default_factory=lambda: [ROOM])
     focus_color: List[int] = field(default_factory=lambda: [255, 60, 40])   # pisca ao fim da pausa
     break_color: List[int] = field(default_factory=lambda: [40, 220, 90])   # pisca ao fim do foco
 
@@ -132,7 +133,7 @@ class Pomodoro:
 class Focus:
     """Modo foco (trabalho/estudo/reuniões): automações não mexem na luz destas lâmpadas."""
     active: bool = False
-    targets: List[str] = field(default_factory=lambda: ["*"])
+    targets: List[str] = field(default_factory=lambda: [ROOM])
     scene_id: str = ""            # cena aplicada ao ligar ("" = cena Foco)
     schedule: bool = True         # liga/desliga sozinho no horário de trabalho
     start: str = "08:00"
@@ -157,6 +158,8 @@ class Settings:
     autostart: bool = False
     location: Location = field(default_factory=Location)
     last_selected: str = "*"
+    room: List[str] = field(default_factory=lambda: ["*"])  # ambiente deste PC (grupo ou lâmpada)
+    room_asked: bool = False      # já perguntou qual é o ambiente
     theme: str = "dark"           # "dark" | "light"
     reduce_transparency: bool = False
     discord_mode: bool = False
@@ -190,6 +193,8 @@ class Config:
         return next((g for g in self.groups if g.id == group_id), None)
 
     def resolve_targets(self, targets: List[str]) -> List[Lamp]:
+        if ROOM in targets:  # ambiente deste PC
+            targets = [t for t in targets if t != ROOM] + [t for t in self.settings.room if t != ROOM]
         if "*" in targets:
             return list(self.lamps)
         ids = set(targets)
@@ -198,7 +203,10 @@ class Config:
                 ids.update(g.members)
         return [l for l in self.lamps if l.id in ids]
 
-    def target_name(self, targets: List[str], all_label: str) -> str:
+    def target_name(self, targets: List[str], all_label: str, room_label: str = "") -> str:
+        if ROOM in targets:
+            inner = self.target_name(self.settings.room, all_label)
+            return f"{room_label} ({inner})" if room_label else inner
         if "*" in targets:
             return all_label
         names = []
@@ -217,6 +225,7 @@ class Config:
             holder.targets = [t for t in holder.targets if t != item_id] or ["*"]
         if s.last_selected == item_id:
             s.last_selected = "*"
+        s.room = [t for t in s.room if t != item_id] or ["*"]
 
     # ------------------------------------------------------ serialização ---
     def to_dict(self) -> dict:
@@ -238,6 +247,8 @@ class Config:
             autostart=bool(s.get("autostart", False)),
             location=Location(**{k: loc[k] for k in ("label", "latitude", "longitude") if k in loc}),
             last_selected=s.get("last_selected", "*"),
+            room=[t for t in (s.get("room") or ["*"]) if t != ROOM] or ["*"],
+            room_asked=bool(s.get("room_asked", False)),
             theme=s.get("theme") if s.get("theme") in ("dark", "light") else "dark",
             reduce_transparency=bool(s.get("reduce_transparency", False)),
             discord_mode=bool(s.get("discord_mode", False)),

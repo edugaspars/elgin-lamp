@@ -200,6 +200,12 @@ STRINGS = {
         "groups.new": "Novo grupo",
         "groups.edit": "Editar grupo",
         "groups.default_name": "Grupo {n}",
+        "room.label": "Ambiente deste PC",
+        "room.title": "Em qual ambiente fica este PC?",
+        "room.note": "As automações (bloqueio, tela cheia, Discord, lembretes, ciclo do dia, música, pomodoro e "
+                     "modo foco) vão mexer só nas lâmpadas deste ambiente, não na casa toda. Escolha o grupo do "
+                     "cômodo (ex.: Escritório) ou crie um agora. Dá para mudar depois no topo da aba Automações.",
+        "room.hint": "Automações e recursos valem só aqui, a menos que uma regra escolha outras lâmpadas.",
         "mode.focus": "Modo foco",
         "focus.tooltip": "Modo foco: luz de trabalho, sem mudanças automáticas",
         "feature.focus_on": "Ligar o modo foco agora",
@@ -555,6 +561,12 @@ STRINGS = {
         "groups.new": "New group",
         "groups.edit": "Edit group",
         "groups.default_name": "Group {n}",
+        "room.label": "This PC's room",
+        "room.title": "Which room is this PC in?",
+        "room.note": "Automations (lock, fullscreen, Discord, reminders, daylight cycle, music, pomodoro and focus "
+                     "mode) will only change the lamps in this room, not the whole house. Pick the room's group "
+                     "(e.g. Office) or create one now. You can change it later at the top of the Automations tab.",
+        "room.hint": "Automations and features only apply here, unless a rule picks other lamps.",
         "mode.focus": "Focus mode",
         "focus.tooltip": "Focus mode: work light, no automatic changes",
         "feature.focus_on": "Turn on focus mode now",
