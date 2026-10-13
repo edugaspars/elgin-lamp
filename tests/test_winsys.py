@@ -44,3 +44,14 @@ def test_safe_defaults_outside_windows(monkeypatch):
     t.start()
     t.join(1)
     assert t.failed == [1]
+
+
+def test_fullscreen_covers_borderless_windows():
+    monitor = (0, 0, 1920, 1080)
+    assert winsys.covers((0, 0, 1920, 1080), monitor)            # tela cheia sem bordas
+    assert winsys.covers((-8, -8, 1928, 1088), monitor)          # passa um pouco da borda
+    assert winsys.covers((0, 0, 1920, 1079), monitor)            # 1 px menor (truque de alguns jogos)
+    assert not winsys.covers((0, 0, 1920, 1040), monitor)        # maximizada: a barra de tarefas aparece
+    assert not winsys.covers((100, 100, 1280, 800), monitor)     # janela comum
+    second = (1920, 0, 3840, 1080)
+    assert winsys.covers((1920, 0, 3840, 1080), second)          # jogo no segundo monitor

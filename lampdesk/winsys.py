@@ -146,7 +146,24 @@ def _covers_monitor(hwnd) -> bool:
     if not mon or not user32.GetMonitorInfoW(wintypes.HMONITOR(mon), ctypes.byref(info)):
         return False
     m = info.rcMonitor
-    return rect.left <= m.left and rect.top <= m.top and rect.right >= m.right and rect.bottom >= m.bottom
+    return covers((rect.left, rect.top, rect.right, rect.bottom), (m.left, m.top, m.right, m.bottom))
+
+
+FULLSCREEN_TOLERANCE_PX = 3
+
+
+def covers(window: Tuple[int, int, int, int], monitor: Tuple[int, int, int, int],
+           tolerance: int = FULLSCREEN_TOLERANCE_PX) -> bool:
+    """A janela (left, top, right, bottom) cobre o monitor inteiro? Vale para tela cheia com ou sem bordas.
+
+    Alguns jogos e players deixam a janela sem bordas 1–2 px menor que o monitor (para o Windows não
+    tratar como tela cheia exclusiva): a tolerância cobre isso. Uma janela maximizada não conta,
+    porque a barra de tarefas tira bem mais que isso.
+    """
+    wl, wt, wr, wb = window
+    ml, mt, mr, mb = monitor
+    t = tolerance
+    return wl <= ml + t and wt <= mt + t and wr >= mr - t and wb >= mb - t
 
 
 def _busy_state() -> bool:
