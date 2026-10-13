@@ -12,7 +12,7 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
 from . import APP_ID, APP_NAME, __version__, autostart, rules, scheduler
-from .automation import Automation, default_rules
+from .automation import RULES_VERSION, Automation, default_rules, upgrade_rules
 from .i18n import set_language, tr
 from .paths import data_dir, log_file
 from .service import LampService
@@ -62,6 +62,9 @@ class LampDeskApp:
         if not cfg.settings.rules_seeded:  # exemplos de automação (também para quem atualizou)
             cfg.rules.extend(default_rules(tr, cfg))
             cfg.settings.rules_seeded = True
+            cfg.settings.rules_version = RULES_VERSION
+            self.store.save()
+        elif upgrade_rules(cfg):
             self.store.save()
 
         self.service = LampService(self.store, demo=demo)

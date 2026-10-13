@@ -17,7 +17,7 @@ TRIGGERS = STATE_TRIGGERS + EVENT_TRIGGERS
 
 # Ações que só "pintam" a lâmpada (podem durar enquanto um estado durar).
 LOOK_ACTIONS = ("on", "off", "scene", "color", "brightness")
-ACTIONS = LOOK_ACTIONS + ("toggle", "brightness_step", "blink", "fade_in", "fade_out", "off_later",
+ACTIONS = LOOK_ACTIONS + ("screen", "toggle", "brightness_step", "blink", "fade_in", "fade_out", "off_later",
                           "pomodoro", "discord_mode", "circadian", "music")
 
 MODES = ("discord",)
@@ -131,7 +131,8 @@ def circadian_look(now: dt.datetime, location: Location, night_brightness: int =
 
 
 # ----------------------------------------------------------------- cores ---
-def vivid_color(pixels: Sequence[Tuple[int, int, int]], bins: int = 24) -> Optional[Tuple[int, int, int]]:
+def vivid_color(pixels: Sequence[Tuple[int, int, int]], bins: int = 24, min_share: float = 0.02,
+                min_saturation: float = 0.18) -> Optional[Tuple[int, int, int]]:
     """Cor predominante e "viva" de uma imagem (capa do álbum, tela).
 
     Pixels cinza ou escuros quase não contam. Retorna None se a imagem não tem cor
@@ -143,7 +144,7 @@ def vivid_color(pixels: Sequence[Tuple[int, int, int]], bins: int = 24) -> Optio
     for r, g, b in pixels:
         h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
         total += 1
-        if s < 0.18 or v < 0.16:
+        if s < min_saturation or v < 0.16:
             continue
         w = s * v
         i = int(h * bins) % bins
@@ -156,12 +157,38 @@ def vivid_color(pixels: Sequence[Tuple[int, int, int]], bins: int = 24) -> Optio
     best = max(range(bins), key=lambda i: weight[i] + 0.5 * (weight[i - 1] + weight[(i + 1) % bins]))
     group = [(best - 1) % bins, best, (best + 1) % bins]
     w = sum(weight[i] for i in group)
-    if w / total < 0.02:
+    if w / total < min_share:
         return None
     r, g, b = (sum(acc[i][c] for i in group) / w for c in range(3))
     h, s, _v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
     r, g, b = colorsys.hsv_to_rgb(h, max(s, 0.65), 1.0)  # a lâmpada fica bonita com cor saturada
     return round(r * 255), round(g * 255), round(b * 255)
+
+
+# Cor da tela no modo jogo/filme: colorido forte, branco suave e quase apagado no escuro.
+SCREEN_COLOUR_BRIGHTNESS = 100
+SCREEN_WHITE_BRIGHTNESS = 25
+SCREEN_DARK_BRIGHTNESS = 1
+
+
+def screen_mood(pixels: Sequence[Tuple[int, int, int]]) -> Tuple[str, object]:
+    """Classifica o que está na tela: ("colour", rgb), ("white", temperatura 0..100) ou ("dark", 0).
+
+    "white" é tela clara sem cor dominante (branco frio ou quente); "dark" é quase preto,
+    cinza ou sem cor (créditos, cenas de noite, menus).
+    """
+    # um logo colorido num menu cinza não conta, e branco amarelado/azulado é branco, não cor
+    rgb = vivid_color(pixels, min_share=0.08, min_saturation=0.3)
+    if rgb is not None:
+        return "colour", rgb
+    if not pixels:
+        return "dark", 0
+    n = len(pixels)
+    r, g, b = (sum(p[i] for p in pixels) / n for i in range(3))
+    if max(r, g, b) / 255 < 0.55:
+        return "dark", 0
+    temperature = round(50 + (b - r) / 255 * 250)  # mais azul = frio, mais vermelho = quente
+    return "white", max(0, min(100, temperature))
 
 
 def color_distance(a, b) -> float:

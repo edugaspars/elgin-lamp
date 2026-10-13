@@ -64,8 +64,7 @@ def default_rules(tr, cfg) -> List[Rule]:
 
     return [
         Rule(tr("rule.ex.away"), trigger="away", delay_min=1, action="off", enabled=False),
-        Rule(tr("rule.ex.fullscreen"), trigger="fullscreen", action="scene", scene_id=scene_id("scene.movie"),
-             enabled=False),
+        Rule(tr("rule.ex.fullscreen"), trigger="fullscreen", action="screen", enabled=False),
         Rule(tr("rule.ex.dawn"), trigger="startup", window_from="05:00", window_to="11:00", action="fade_in",
              scene_id=scene_id("scene.reading"), minutes=10, enabled=False),
         Rule(tr("rule.ex.bedtime"), trigger="time", time="23:00", action="fade_out", minutes=15, enabled=False),
@@ -78,6 +77,28 @@ def default_rules(tr, cfg) -> List[Rule]:
              mode="discord", action="blink", color=[40, 230, 90], color2=[255, 255, 255], times=5),
         Rule(tr("rule.ex.hotkey"), trigger="hotkey", hotkey="Ctrl+Alt+L", action="toggle", enabled=False),
     ]
+
+
+RULES_VERSION = 2
+
+
+def upgrade_rules(cfg) -> bool:
+    """Atualiza exemplos de versões anteriores que o usuário não mexeu. True se mudou algo."""
+    from .i18n import STRINGS
+    changed = False
+    if cfg.settings.rules_version < 2:
+        # modo jogo/filme: da cena "Cinema" (roxo fixo) para a cor da tela
+        names = {STRINGS[lang]["rule.ex.fullscreen"] for lang in STRINGS}
+        movie = {STRINGS[lang]["scene.movie"] for lang in STRINGS}
+        for r in cfg.rules:
+            sc = cfg.scene(r.scene_id)
+            if r.trigger == "fullscreen" and r.name in names and r.action == "scene" and sc and sc.name in movie:
+                r.action = "screen"
+                changed = True
+    if cfg.settings.rules_version != RULES_VERSION:
+        cfg.settings.rules_version = RULES_VERSION
+        changed = True
+    return changed
 
 
 # ---------------------------------------------------------------- camadas ---
@@ -421,6 +442,9 @@ class Automation(QObject):
         self._music_color = None
         self._cover_busy = False
         self.cover = CoverTracker()
+        self._screen_rules: Dict[str, List[str]] = {}  # camada de regra "cor da tela" -> lâmpadas
+        self._mood = None             # último visual da tela aplicado
+        self._mood_pending = (None, 0)  # troca de tipo (cor/branco/escuro) esperando confirmar
 
         service.userCommand.connect(self._on_user)
         self._hotkey.connect(self._on_hotkey, Qt.ConnectionType.QueuedConnection)
@@ -434,6 +458,8 @@ class Automation(QObject):
         self._cover_timer.timeout.connect(self._poll_cover)
         self._screen_timer = QTimer(self, interval=500)
         self._screen_timer.timeout.connect(self._poll_screen)
+        self._ambi_timer = QTimer(self, interval=500)
+        self._ambi_timer.timeout.connect(self._ambi_tick)
         self._clock.start()
         self._circ_timer.start()
 
@@ -471,8 +497,12 @@ class Automation(QObject):
         """Configuração mudou: reavalia regras ativas, atalhos e recursos."""
         valid = {r.id for r in self.cfg.rules if r.enabled and r.trigger in R.STATE_TRIGGERS}
         for rid in [rid for rid in self._active if rid not in valid]:
-            self.stack.pop(self._active.pop(rid))
+            key = self._active.pop(rid)
+            self._screen_rules.pop(key, None)
+            self.stack.pop(key)
             self._since.pop(rid, None)
+        if not self._screen_rules:
+            self._ambi_timer.stop()
         self._setup_hotkeys()
         self._setup_music()
         self.evaluate_states()
@@ -586,6 +616,8 @@ class Automation(QObject):
         with (contextlib.nullcontext() if manual else svc.automated()):
             if a in R.LOOK_ACTIONS:
                 paint(svc, ids, self._look(rule))
+            elif a == "screen":
+                paint(svc, ids, self.screen_look(fresh=True))
             elif a == "toggle":
                 svc.toggle(ids)
             elif a == "brightness_step":
@@ -649,7 +681,12 @@ class Automation(QObject):
         key = f"rule:{r.id}"
         self._active[r.id] = key
         log.info("Automação '%s' começou", r.name)
-        if r.action in R.LOOK_ACTIONS:
+        if r.action == "screen":
+            ids = self.ids(r.targets)
+            self._screen_rules[key] = ids
+            self.stack.push(key, prio, ids, self.screen_look(fresh=True))
+            self._ambi_timer.start()
+        elif r.action in R.LOOK_ACTIONS:
             self.stack.push(key, prio, self.ids(r.targets), self._look(r))
         else:
             self.run_action(r)
@@ -657,6 +694,8 @@ class Automation(QObject):
     def _exit(self, r: Rule) -> None:
         key = self._active.pop(r.id)
         log.info("Automação '%s' terminou", r.name)
+        if self._screen_rules.pop(key, None) is not None and not self._screen_rules:
+            self._ambi_timer.stop()
         if r.restore == "scene" and self.cfg.scene(r.restore_scene):
             ids = [lid for lid in self.ids(r.targets) if self.stack.controls(lid)]
             self.stack.pop(key, restore=False)
@@ -861,16 +900,51 @@ class Automation(QObject):
             self.changed.emit()
 
     def _poll_screen(self) -> None:
-        from PySide6.QtGui import QGuiApplication
-        screen = QGuiApplication.primaryScreen()  # só o monitor principal (Configurações do Windows › Tela)
-        if screen is None:
-            return
-        pm = screen.grabWindow(0)
-        if pm.isNull():
-            return
-        rgb = image_color(primary_area(pm.toImage(), screen.geometry(), screen.virtualGeometry()))
+        img = grab_primary()
+        rgb = image_color(img) if img is not None else None
         if rgb is not None:
             self.set_music_color(rgb)
+
+    # ------------------------------------------------- cor da tela (jogo/filme) ---
+    def screen_look(self, fresh: bool = False, pixels=None):
+        """Visual da tela agora: colorido a 100%, branco a 25% ou branco quente a 1% no escuro.
+
+        Trocar de tipo (cor ↔ branco ↔ escuro) só depois de duas leituras seguidas, para um
+        clarão rápido não piscar a luz. `fresh` ignora a espera (ao entrar no modo).
+        """
+        if pixels is None:
+            img = grab_primary()
+            pixels = image_pixels(img) if img is not None else []
+        kind, value = R.screen_mood(pixels)
+        prev = self._mood
+        if not fresh and prev is not None and kind != prev[0]:
+            pending, count = self._mood_pending
+            count = count + 1 if pending == kind else 1
+            self._mood_pending = (kind, count)
+            if count < 2:
+                return prev[1]
+        self._mood_pending = (None, 0)
+        if kind == "colour":
+            if prev and prev[0] == "colour" and R.color_distance(value, prev[1].color) < 24:
+                return prev[1]
+            look = Scene("", "colour", R.SCREEN_COLOUR_BRIGHTNESS, 50, list(value))
+        elif kind == "white":
+            look = Scene("", "white", R.SCREEN_WHITE_BRIGHTNESS, value)
+            if prev and prev[0] == "white" and abs(prev[1].temperature - value) < 6:
+                return prev[1]
+        else:
+            look = Scene("", "white", R.SCREEN_DARK_BRIGHTNESS, 0)
+        self._mood = (kind, look)
+        return look
+
+    def _ambi_tick(self) -> None:
+        if not self._screen_rules:
+            self._ambi_timer.stop()
+            return
+        look = self.screen_look()
+        for key, ids in self._screen_rules.items():
+            if self.stack.active(key):
+                self.stack.push(key, PRIO_MODE, ids, look)
 
     # ------------------------------------------------------------ diagnóstico ---
     def diagnostics(self) -> Dict[str, str]:
@@ -909,15 +983,27 @@ def primary_area(image, geo, virtual):
                             round(geo.width() * ratio), round(geo.height() * ratio)))
 
 
-def image_color(image) -> Optional[tuple]:
-    """Cor viva de uma imagem (QImage ou bytes de PNG/JPEG)."""
+def grab_primary():
+    """Captura do monitor principal (QImage) ou None."""
+    from PySide6.QtGui import QGuiApplication
+    screen = QGuiApplication.primaryScreen()  # só o principal (Configurações do Windows › Tela)
+    if screen is None:
+        return None
+    pm = screen.grabWindow(0)
+    if pm.isNull():
+        return None
+    return primary_area(pm.toImage(), screen.geometry(), screen.virtualGeometry())
+
+
+def image_pixels(image) -> list:
+    """Pixels (r, g, b) de uma versão reduzida da imagem (QImage ou bytes de PNG/JPEG)."""
     from PySide6.QtCore import Qt as _Qt
     from PySide6.QtGui import QImage
 
     if isinstance(image, (bytes, bytearray)):
         image = QImage.fromData(bytes(image))
     if image is None or image.isNull():
-        return None
+        return []
     small = image.scaled(48, 32, _Qt.AspectRatioMode.IgnoreAspectRatio,
                          _Qt.TransformationMode.SmoothTransformation).convertToFormat(QImage.Format.Format_RGB32)
     pixels = []
@@ -925,4 +1011,9 @@ def image_color(image) -> Optional[tuple]:
         for x in range(small.width()):
             v = small.pixel(x, y)
             pixels.append(((v >> 16) & 255, (v >> 8) & 255, v & 255))
-    return R.vivid_color(pixels)
+    return pixels
+
+
+def image_color(image) -> Optional[tuple]:
+    """Cor viva de uma imagem (QImage ou bytes de PNG/JPEG)."""
+    return R.vivid_color(image_pixels(image))

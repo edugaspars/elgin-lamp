@@ -153,6 +153,7 @@ class Settings:
     music: Music = field(default_factory=Music)
     pomodoro: Pomodoro = field(default_factory=Pomodoro)
     rules_seeded: bool = False
+    rules_version: int = 0        # exemplos atualizados (ver automation.upgrade_rules)
 
 
 @dataclass
@@ -232,6 +233,7 @@ class Config:
             music=one(Music, s.get("music")),
             pomodoro=one(Pomodoro, s.get("pomodoro")),
             rules_seeded=bool(s.get("rules_seeded", False)),
+            rules_version=int(s.get("rules_version", 0) or 0),
         )
         return cls(
             lamps=build(Lamp, data.get("lamps")),

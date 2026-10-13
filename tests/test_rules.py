@@ -130,3 +130,18 @@ def test_new_config_fields_roundtrip():
     old = Config.from_dict({"lamps": [], "settings": {"theme": "light"}})  # configuração de versões antigas
     assert old.rules == [] and old.groups == [] and not old.settings.rules_seeded
     assert Config.from_dict({"rules": [{"name": "x", "campo_novo": 1}]}).rules[0].name == "x"
+
+
+def test_screen_mood():
+    colourful = [(30, 200, 60)] * 60 + [(10, 10, 10)] * 40
+    kind, rgb = R.screen_mood(colourful)
+    assert kind == "colour" and rgb[1] == 255
+    assert R.screen_mood([(250, 250, 255)] * 100)[0] == "white"
+    cold = R.screen_mood([(210, 225, 255)] * 100)
+    warm = R.screen_mood([(255, 235, 200)] * 100)
+    assert cold[0] == warm[0] == "white" and cold[1] > 50 > warm[1]
+    assert R.screen_mood([(15, 15, 20)] * 100) == ("dark", 0)       # cena escura / créditos
+    assert R.screen_mood([(110, 110, 110)] * 100) == ("dark", 0)    # menu cinza
+    logo = [(255, 0, 0)] * 3 + [(120, 120, 120)] * 97                # logo pequeno num menu cinza
+    assert R.screen_mood(logo)[0] == "dark"
+    assert R.screen_mood([]) == ("dark", 0)

@@ -275,7 +275,8 @@ STRINGS = {
         "trigger.hotkey": "Tecla de atalho",
         "trigger.away.hint": "Vale enquanto o PC estiver bloqueado (Win+L) ou com a tela apagada.",
         "trigger.fullscreen.hint": "Vale enquanto um jogo ou vídeo estiver em tela cheia, ou um programa da lista "
-                                   "estiver em primeiro plano.",
+                                   "estiver em primeiro plano. Com \"Cor da tela\": colorido a 100%, branco a 25% "
+                                   "e quase apagada (1%) em cenas escuras.",
         "trigger.time.hint": "Pausada nas férias.",
         "trigger.sunrise.hint": "Usa a localização da aba Geral. Pausada nas férias.",
         "trigger.sunset.hint": "Usa a localização da aba Geral. Pausada nas férias.",
@@ -286,6 +287,7 @@ STRINGS = {
         "trigger.hotkey.hint": "Funciona em qualquer programa. Se outro app já usa a combinação, veja o Diagnóstico.",
         "action.on": "Ligar",
         "action.off": "Desligar",
+        "action.screen": "Cor da tela (ambilight)",
         "action.toggle": "Ligar/desligar",
         "action.scene": "Aplicar cena",
         "action.color": "Mudar cor",
@@ -604,7 +606,9 @@ STRINGS = {
         "trigger.notification": "App notification",
         "trigger.hotkey": "Hotkey",
         "trigger.away.hint": "Lasts while the PC is locked (Win+L) or the screen is off.",
-        "trigger.fullscreen.hint": "Lasts while a game or video is fullscreen, or a listed program is in the foreground.",
+        "trigger.fullscreen.hint": "Lasts while a game or video is fullscreen, or a listed program is in the "
+                                   "foreground. With \"Screen color\": colors at 100%, white at 25% and almost off "
+                                   "(1%) in dark scenes.",
         "trigger.time.hint": "Paused during vacation.",
         "trigger.sunrise.hint": "Uses the location from the General tab. Paused during vacation.",
         "trigger.sunset.hint": "Uses the location from the General tab. Paused during vacation.",
@@ -615,6 +619,7 @@ STRINGS = {
         "trigger.hotkey.hint": "Works in any program. If another app already uses the combination, check Diagnostics.",
         "action.on": "Turn on",
         "action.off": "Turn off",
+        "action.screen": "Screen color (ambilight)",
         "action.toggle": "Toggle on/off",
         "action.scene": "Apply scene",
         "action.color": "Change color",

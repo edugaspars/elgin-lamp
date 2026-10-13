@@ -46,7 +46,7 @@ Smart bulbs are great until you need them **while you're at your computer**. Gra
 | 🎬 **Scenes** | Reading, Relax, Focus, Night, Movie… plus your own. |
 | ⏰ **Routines** | By time and weekday, or at **sunrise/sunset** with a minute offset. |
 | 🌙 **Sleep timer** | "Turn off in 30 minutes". |
-| 🤖 **Automations** | "When / If / Then" editor: turn off when the PC locks, game/movie mode in fullscreen, sunrise when the PC turns on, fade out, turn off 2 min after the PC shuts down, blinking reminders, global hotkeys. |
+| 🤖 **Automations** | "When / If / Then" editor: turn off when the PC locks, game/movie mode in fullscreen with the screen color (ambilight), sunrise when the PC turns on, fade out, turn off 2 min after the PC shuts down, blinking reminders, global hotkeys. |
 | 💬 **Discord mode** | A message blinks blue, a call blinks green and white (reads Windows notifications). |
 | 🌅 **Daylight cycle, music and pomodoro** | Cool light by day and warm at night, color from the album cover or the screen, a pomodoro that blinks at the end of each step, and a vacation pause. |
 | 🔐 **Privacy** | IPs and keys stay **encrypted** on your PC only. Nothing goes into the repository. |

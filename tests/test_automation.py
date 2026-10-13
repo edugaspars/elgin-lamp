@@ -319,3 +319,60 @@ def test_screen_light_uses_only_the_primary_monitor(qapp):
     only = whole.copy(192, 0, 192, 108)  # quando o Qt já entrega só o principal, não recorta de novo
     assert primary_area(only, primary, virtual).size() == only.size()
     assert primary_area(only, primary, primary) is only
+
+
+def _image(rgb):
+    from PySide6.QtGui import QColor, QImage
+    img = QImage(64, 36, QImage.Format.Format_RGB32)
+    img.fill(QColor(*rgb))
+    return img
+
+
+def test_screen_look_levels_and_hysteresis(env):
+    qapp, store, svc, auto = env
+    red, white, dark = [(230, 20, 20)] * 50, [(250, 250, 250)] * 50, [(5, 5, 5)] * 50
+    look = auto.screen_look(fresh=True, pixels=red)
+    assert look.mode == "colour" and look.brightness == 100
+    assert auto.screen_look(pixels=dark) is look          # um quadro escuro só: mantém
+    dim = auto.screen_look(pixels=dark)                    # confirmou: quente a 1%
+    assert dim.mode == "white" and dim.brightness == 1 and dim.temperature == 0
+    auto.screen_look(pixels=white)
+    soft = auto.screen_look(pixels=white)
+    assert soft.mode == "white" and soft.brightness == 25
+    auto.screen_look(pixels=red)
+    back = auto.screen_look(pixels=red)
+    assert back.mode == "colour" and back.brightness == 100  # voltou ao colorido: 100% de novo
+
+
+def test_fullscreen_screen_color_rule(env, monkeypatch):
+    qapp, store, svc, auto = env
+    from lampdesk import automation
+    frame = {"img": _image((5, 5, 5))}
+    monkeypatch.setattr(automation, "grab_primary", lambda: frame["img"])
+    add_rule(store, auto, trigger="fullscreen", action="screen", targets=["a"])
+    auto.fullscreen = True
+    auto.evaluate_states()
+    assert wait(qapp, lambda: svc.state("a").brightness == 1 and svc.state("a").temperature == 0)
+    frame["img"] = _image((20, 40, 230))
+    auto._ambi_tick()
+    auto._ambi_tick()
+    assert wait(qapp, lambda: svc.state("a").mode == "colour" and svc.state("a").brightness == 100)
+    auto.fullscreen = False
+    auto.evaluate_states()
+    assert wait(qapp, lambda: svc.state("a").mode == "white" and svc.state("a").brightness == 40)
+    assert not auto._ambi_timer.isActive()
+
+
+def test_upgrade_movie_example_to_screen_color(qapp):
+    from lampdesk.automation import RULES_VERSION, upgrade_rules
+    from lampdesk.i18n import tr
+    from lampdesk.storage import Config, Rule, default_scenes
+    cfg = Config(scenes=default_scenes(tr))
+    movie = next(s for s in cfg.scenes if s.name == tr("scene.movie"))
+    old = Rule(tr("rule.ex.fullscreen"), trigger="fullscreen", action="scene", scene_id=movie.id)
+    mine = Rule("Meu modo", trigger="fullscreen", action="scene", scene_id=movie.id)  # do usuário: não mexe
+    cfg.rules = [old, mine]
+    assert upgrade_rules(cfg)
+    assert old.action == "screen" and mine.action == "scene"
+    assert cfg.settings.rules_version == RULES_VERSION
+    assert not upgrade_rules(cfg)  # só uma vez

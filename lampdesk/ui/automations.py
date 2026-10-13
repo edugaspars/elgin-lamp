@@ -322,7 +322,7 @@ class RuleDialog(_Dialog):
         else:
             self.value_spin.setRange(-100, 100)
         f.setRowVisible(self.targets, a not in ("pomodoro", "discord_mode", "circadian", "music"))
-        lasting = t in R.STATE_TRIGGERS and a in R.LOOK_ACTIONS
+        lasting = t in R.STATE_TRIGGERS and (a in R.LOOK_ACTIONS or a == "screen")
         f.setRowVisible(self.restore, lasting)
         f.setRowVisible(self.restore_scene, lasting and self.restore.currentData() == "scene")
         self.adjustSize()
