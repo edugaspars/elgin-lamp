@@ -36,6 +36,7 @@ class LampService(QObject):
         self._auto = 0  # > 0 enquanto as automações mandam comandos
         self._bypass = 0
         self.locked: set = set()  # modo foco: automações não mexem nessas lâmpadas
+        self._scenes: Dict[str, str] = {}  # lid -> id da cena ativa (a que o painel mostra)
 
         self._bulbState.connect(self._on_bulb_state, Qt.ConnectionType.QueuedConnection)
         self._bulbVersion.connect(self.versionDetected, Qt.ConnectionType.QueuedConnection)
@@ -155,6 +156,27 @@ class LampService(QObject):
         rgb = tuple(int(c) for c in rgb)
         self._apply(ids, "color", rgb, lambda s: replace(s, is_on=True, mode="colour", color=rgb))
 
+    def scene_of(self, ids) -> Optional[str]:
+        """Id da cena ativa nessas lâmpadas (None se não há cena ou se cada uma está numa)."""
+        found = {self._scenes.get(lid) for lid in ids}
+        return found.pop() if len(found) == 1 else None
+
+    def scene_mark(self, lid: str) -> Optional[str]:
+        return self._scenes.get(lid)
+
+    def set_scene_mark(self, lid: str, scene_id: Optional[str]) -> None:
+        """Usado pelas camadas das automações: ao terminar, a cena que estava volta junto com a luz."""
+        if scene_id:
+            self._scenes[lid] = scene_id
+        else:
+            self._scenes.pop(lid, None)
+
+    def _mark_scene(self, ids, scene: Scene) -> None:
+        # visuais internos das automações (piscar, cor da tela…) não são cenas do usuário
+        if self.store.config.scene(scene.id) is not None:
+            for lid in ids:
+                self._scenes[lid] = scene.id
+
     def apply_scene(self, ids, scene: Scene) -> None:
         if scene.mode in REACTIVE_MODES:  # cena reativa: não vai para a lâmpada, as automações acompanham
             ids = list(ids)
@@ -162,7 +184,10 @@ class LampService(QObject):
                 ids = [i for i in ids if i not in self.locked]
             if not self._auto:
                 self.userCommand.emit(ids, "scene")
+            self._mark_scene(ids, scene)
             self.reactiveScene.emit(ids, scene)
+            for lid in ids:
+                self.stateChanged.emit(lid, self.state(lid))  # o painel mostra a cena na hora
             return
 
         def optimistic(s):
@@ -188,6 +213,11 @@ class LampService(QObject):
             ids = [i for i in ids if i not in self.locked]  # cancelar o timer (0) sempre passa
         if not self._auto and kind != "countdown":
             self.userCommand.emit(ids, kind)
+            if kind in ("brightness", "temperature", "color"):
+                for lid in ids:  # mexeu à mão: já não é mais a cena
+                    self._scenes.pop(lid, None)
+        if kind == "scene":
+            self._mark_scene(ids, value)
         for lid in ids:
             bulb = self._bulbs.get(lid)
             if bulb is None:

@@ -47,7 +47,6 @@ class Popup(QWidget):
         # abre no ambiente deste PC; sem ambiente escolhido, na última seleção
         self.selection = room[0] if room != ["*"] else (store.config.settings.last_selected or "*")
         self.slider_mode = "brightness"
-        self.last_scene = ""
         self._arrow_up = False
         self._arrow_x = WIDTH / 2
         self._hidden_at = 0.0
@@ -310,7 +309,9 @@ class Popup(QWidget):
             t.set_active(self.slider_mode == mode)
         self._update_timer_tile()
 
-        self.scene_pill.setText(self.last_scene or tr("scenes"))
+        sid = self.service.scene_of(self.ids())
+        sc = self.store.config.scene(sid) if sid else None
+        self.scene_pill.setText(sc.name if sc else tr("scenes"))
         self.scene_pill.updateGeometry()
 
         states = [self.service.state(i) for i in self.ids()]
@@ -367,7 +368,6 @@ class Popup(QWidget):
         c = QColorDialog.getColor(QColor(*s.color), self, tr("pick_color"))
         if c.isValid():
             self.service.set_color(self.ids(), (c.red(), c.green(), c.blue()))
-            self.last_scene = ""
 
     def _toggle_power(self):
         self.service.toggle(self.ids())
@@ -399,7 +399,6 @@ class Popup(QWidget):
             self.service.set_temperature(ids, v)
         else:
             self.service.set_color(ids, rgb_from_hue(v))
-        self.last_scene = ""
 
     def _menu(self):
         m = QMenu(self)
@@ -447,7 +446,6 @@ class Popup(QWidget):
 
     def _apply_scene(self, scene):
         self.service.apply_scene(self.ids(), scene)
-        self.last_scene = scene.name
         self.update_view()
 
     def _choose_timer(self):

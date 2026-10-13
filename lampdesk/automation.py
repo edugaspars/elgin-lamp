@@ -130,6 +130,7 @@ class LightStack:
         self.service = service
         self._layers: Dict[str, list] = {}   # chave -> [prioridade, ordem, ids, visual, passa a trava]
         self._base: Dict[str, object] = {}   # lid -> visual de antes da primeira camada
+        self._base_scene: Dict[str, Optional[str]] = {}  # lid -> cena que o painel mostrava antes
         self._shown: Dict[str, object] = {}  # lid -> assinatura do visual aplicado
         self._order = 0
 
@@ -174,6 +175,7 @@ class LightStack:
                 if not st.online:
                     continue  # sem estado conhecido não há para onde voltar
                 self._base[lid] = look_of(st)
+                self._base_scene[lid] = self.service.scene_mark(lid)
             layer[2].add(lid)
         self._refresh(layer[2])
 
@@ -181,7 +183,7 @@ class LightStack:
         layer = self._layers.pop(key, None)
         if layer is None:
             return
-        back = {}
+        back, scenes = {}, {}
         for lid in layer[2]:
             if lid not in self._base:
                 continue
@@ -189,16 +191,21 @@ class LightStack:
                 self._refresh([lid])
                 continue
             base = self._base.pop(lid)
+            scene = self._base_scene.pop(lid, None)
             self._shown.pop(lid, None)
             if restore:
                 back.setdefault(repr(_sig(base)), (base, []))[1].append(lid)
+                scenes[lid] = scene
         for look, ids in back.values():
             self._apply(ids, look, bypass=layer[4])  # quem passou pela trava também volta por ela
+        for lid, scene in scenes.items():
+            self.service.set_scene_mark(lid, scene)  # e o painel volta a mostrar a cena de antes
 
     def release(self, ids) -> None:
         """Mexeram à mão: as camadas param de mandar nessas lâmpadas e não as "desfazem" depois."""
         for lid in ids:
             self._base.pop(lid, None)
+            self._base_scene.pop(lid, None)
             self._shown.pop(lid, None)
             for layer in self._layers.values():
                 layer[2].discard(lid)

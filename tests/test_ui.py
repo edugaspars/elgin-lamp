@@ -279,3 +279,45 @@ def test_room_prompt_and_panel_start(qapp, app):
     p.deleteLater()
     app.open_settings("automations")
     assert app.settings_window.automations.room.value() == ["office"]
+
+
+def test_panel_shows_each_lamps_active_scene(qapp, app):
+    from PySide6.QtCore import QRect
+    from lampdesk.i18n import tr
+    cfg, svc, popup = app.store.config, app.service, app.popup
+    a, b, c = (l.id for l in cfg.lamps)
+    reading = next(s for s in cfg.scenes if s.mode == "white")
+    ambi = next(s for s in cfg.scenes if s.mode == "screen")
+    music = next(s for s in cfg.scenes if s.mode == "cover")
+    popup.show_at(QRect(600, 580, 20, 20))
+    svc.apply_scene([a], reading)
+    svc.apply_scene([b], ambi)
+    svc.apply_scene([c], music)
+    for lid, sc in ((a, reading), (b, ambi), (c, music)):
+        popup._select(lid)
+        assert popup.scene_pill.text() == sc.name     # trocou de lâmpada: mostra a cena dela
+    popup._select("*")
+    assert popup.scene_pill.text() == tr("scenes")    # cada uma numa cena
+    svc.set_brightness([a], 30)                       # mexeu à mão: deixa de ser a cena
+    popup._select(a)
+    assert popup.scene_pill.text() == tr("scenes")
+    svc.set_power([c], False)
+    popup._select(c)
+    assert popup.scene_pill.text() == music.name      # desligar não esquece a cena
+
+
+def test_scene_mark_survives_blink_and_lasting_rules(qapp, app):
+    cfg, svc, auto = app.store.config, app.service, app.automation
+    a = cfg.lamps[0].id
+    reading = next(s for s in cfg.scenes if s.mode == "white")
+    night = next(s for s in cfg.scenes if s.mode == "colour")
+    assert wait(qapp, lambda: svc.state(a).online)
+    svc.apply_scene([a], reading)
+    assert wait(qapp, lambda: svc.state(a).is_on)
+    auto.stack.push("teste", 50, [a], night)          # regra que dura aplica outra cena
+    assert svc.scene_mark(a) == night.id
+    auto.stack.pop("teste")                           # terminou: luz e cena de antes
+    assert svc.scene_mark(a) == reading.id
+    auto.stack.push("blink:x", 100, [a], None)        # piscada (visual interno)
+    auto.stack.pop("blink:x")
+    assert svc.scene_mark(a) == reading.id
