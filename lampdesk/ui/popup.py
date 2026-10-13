@@ -227,8 +227,19 @@ class Popup(QWidget):
         settings = IconButton("sliders")
         settings.setToolTip(tr("settings"))
         settings.clicked.connect(lambda: self.openSettings.emit("lamps"))
+        # o que está controlando a luz agora (Ambilight, Música, modo jogo…), com ✕ para parar
+        self.controller = QPushButton()
+        self.controller.setProperty("chip", True)
+        self.controller.setFixedHeight(24)
+        self.controller.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.controller.setToolTip(tr("controller.stop"))
+        self.controller.clicked.connect(self._stop_controller)
+        self.controller.hide()
+        self._controller_key = None
         f.addWidget(self.status_icon)
         f.addWidget(self.status_text)
+        f.addSpacing(4)
+        f.addWidget(self.controller)
         f.addStretch(1)
         if self.automation is not None:
             f.addWidget(self.auto_btn)
@@ -309,6 +320,7 @@ class Popup(QWidget):
             t.set_active(self.slider_mode == mode)
         self._update_timer_tile()
 
+        self._update_controller()
         sid = self.service.scene_of(self.ids())
         sc = self.store.config.scene(sid) if sid else None
         self.scene_pill.setText(sc.name if sc else tr("scenes"))
@@ -371,6 +383,19 @@ class Popup(QWidget):
 
     def _toggle_power(self):
         self.service.toggle(self.ids())
+
+    def _update_controller(self):
+        info = self.automation.controller(self.ids()) if self.automation is not None else None
+        self._controller_key = info[0] if info else None
+        if info:
+            name = info[1] if len(info[1]) <= 22 else info[1][:21] + "…"
+            self.controller.setText(f"{name}  ✕")
+        self.controller.setVisible(bool(info))
+
+    def _stop_controller(self):
+        if self._controller_key:
+            self.automation.stop(self._controller_key)
+        self.update_view()
 
     def _toggle_focus(self):
         self.automation.set_focus(not self.automation.is_focus())

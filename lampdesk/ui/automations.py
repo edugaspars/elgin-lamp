@@ -102,34 +102,70 @@ class ColorButton(QPushButton):
         self._sync()
 
 
+def _words(text: str, n: int = 2) -> str:
+    alts = [t.strip() for t in text.split("|") if t.strip()]
+    return ", ".join(alts[:n]) + ("…" if len(alts) > n else "")
+
+
 def describe_rule(cfg, r: Rule) -> str:
-    when = tr(f"trigger.{r.trigger}")
-    if r.trigger == "time":
-        when = f"{when} {r.time}"
-    elif r.trigger in ("sunrise", "sunset") and r.offset_min:
-        when += f" {r.offset_min:+d} min"
-    elif r.trigger == "away":
-        when += " · " + tr("rule.after_min", n=r.delay_min)
-    elif r.trigger == "hotkey":
-        when += f" {r.hotkey}"
-    elif r.trigger == "notification" and r.apps:
-        when += f" ({', '.join(r.apps)})"
-    parts = [when]
+    """Nome da regra e, embaixo, uma frase simples: "Quando…, faz…"."""
+    t = r.trigger
+    if t == "away":
+        when = tr("say.away", n=r.delay_min) if r.delay_min else tr("say.away_now")
+        if r.idle_min:
+            when += tr("say.away_idle", n=r.idle_min)
+    elif t == "fullscreen":
+        apps = ", ".join(r.apps)
+        when = tr("say.fullscreen_both", apps=apps) if r.any_fullscreen and apps else \
+            tr("say.fullscreen_apps", apps=apps) if apps else tr("say.fullscreen")
+    elif t == "time":
+        when = tr("say.time", t=r.time)
+    elif t in ("sunrise", "sunset"):
+        when = tr(f"say.{t}") + (f" ({r.offset_min:+d} min)" if r.offset_min else "")
+    elif t == "shutdown":
+        when = tr("say.shutdown_suspend") if r.suspend else tr("say.shutdown")
+    elif t == "notification":
+        when = tr("say.notification", apps=", ".join(r.apps) or "?")
+        if r.text:
+            when += tr("say.notification_text", words=_words(r.text))
+    elif t == "hotkey":
+        when = tr("say.hotkey", combo=r.hotkey)
+    else:
+        when = tr(f"say.{t}")
     if r.days != list(range(7)):
-        parts.append(days_text(r.days))
+        when += f", {days_text(r.days)}"
     if r.window_from and r.window_to:
-        parts.append(f"{r.window_from}–{r.window_to}")
+        when += tr("say.between", a=r.window_from, b=r.window_to)
     if r.only_dark:
-        parts.append(tr("rule.only_dark_short"))
-    if r.mode:
-        parts.append(tr(f"mode.{r.mode}"))
-    action = tr(f"action.{r.action}")
-    if r.action in ("scene", "fade_in") and cfg.scene(r.scene_id):
-        action += f": {cfg.scene(r.scene_id).name}"
-    elif r.action in ("fade_in", "fade_out", "off_later"):
-        action += f" ({r.minutes} min)"
-    targets = cfg.target_name(r.targets, tr("all_lamps"), tr("room.label"))
-    return f"{r.name}\n{' · '.join(parts)} → {action} · {targets}"
+        when += tr("say.dark")
+    if r.mode == "discord":
+        when += tr("say.discord")
+
+    a = r.action
+    sc = cfg.scene(r.scene_id)
+    if a == "scene":
+        action = tr("say.do.scene", name=sc.name if sc else "?")
+    elif a == "fade_in":
+        action = tr("say.do.fade_in", name=sc.name if sc else "100%", m=r.minutes)
+    elif a in ("fade_out", "off_later"):
+        action = tr(f"say.do.{a}", m=r.minutes)
+    elif a == "brightness":
+        action = tr("say.do.brightness", v=r.value)
+    elif a == "brightness_step":
+        action = tr("say.do.brightness_up" if r.value >= 0 else "say.do.brightness_down", v=abs(r.value))
+    elif a == "blink":
+        action = tr("say.do.blink", n=r.times)
+    else:
+        action = tr(f"say.do.{a}")
+    if t in R.STATE_TRIGGERS and (a in R.LOOK_ACTIONS or a == "screen"):
+        if r.restore == "previous":
+            action += tr("say.restore_previous")
+        elif r.restore == "scene" and cfg.scene(r.restore_scene):
+            action += tr("say.restore_scene", name=cfg.scene(r.restore_scene).name)
+    if r.targets != [ROOM] and a not in ("pomodoro", "focus", "discord_mode", "circadian"):
+        action += tr("say.targets", names=cfg.target_name(r.targets, tr("all_lamps")))
+    sentence = f"{when}, {action}."
+    return f"{r.name}\n{sentence[0].upper()}{sentence[1:]}"
 
 
 # ------------------------------------------------------------ diálogos ---
@@ -329,7 +365,7 @@ class RuleDialog(_Dialog):
             self.value_spin.setRange(1, 100)
         else:
             self.value_spin.setRange(-100, 100)
-        f.setRowVisible(self.targets, a not in ("pomodoro", "focus", "discord_mode", "circadian", "music"))
+        f.setRowVisible(self.targets, a not in ("pomodoro", "focus", "discord_mode", "circadian"))
         lasting = t in R.STATE_TRIGGERS and (a in R.LOOK_ACTIONS or a == "screen")
         f.setRowVisible(self.restore, lasting)
         f.setRowVisible(self.restore_scene, lasting and self.restore.currentData() == "scene")
@@ -487,7 +523,7 @@ def _spin(lo, hi, suffix=" min"):
 
 
 class FeaturesPage(QScrollArea):
-    """Recursos contínuos: modo foco, modo Discord, ciclo do dia, música, pomodoro e férias."""
+    """Recursos contínuos: modo foco, modo Discord, ciclo do dia, pomodoro e férias."""
 
     def __init__(self, tab):
         super().__init__()
@@ -559,19 +595,6 @@ class FeaturesPage(QScrollArea):
         add(None, muted(tr("feature.circadian_note")))
 
         # música
-        add(None, section(tr("feature.music"), 14))
-        self.music = QCheckBox(tr("feature.music_on"))
-        add(None, self.music)
-        self.music_source = QComboBox()
-        self.music_source.addItem(tr("mode.music_cover"), "cover")
-        self.music_source.addItem(tr("mode.music_screen"), "screen")
-        add(tr("feature.music_source"), self.music_source)
-        self.music_targets = TargetCombo(cfg, cfg.settings.music.targets)
-        add(tr("routine.targets"), self.music_targets)
-        self.music_bright = _spin(5, 100, " %")
-        add(tr("brightness"), self.music_bright)
-        add(None, muted(tr("feature.music_note")))
-
         # pomodoro
         add(None, section(tr("feature.pomodoro"), 14))
         self.p_focus, self.p_short, self.p_long = _spin(1, 180), _spin(1, 60), _spin(1, 90)
@@ -600,15 +623,13 @@ class FeaturesPage(QScrollArea):
         g.setRowStretch(row, 1)
 
         self.refresh()
-        for w in (self.focus_on, self.focus_schedule, self.discord, self.circ, self.circ_bright, self.music,
-                  self.pause):
+        for w in (self.focus_on, self.focus_schedule, self.discord, self.circ, self.circ_bright, self.pause):
             w.toggled.connect(self._save)
-        for w in (self.focus_targets, self.focus_scene, self.circ_targets, self.music_source, self.music_targets,
-                  self.p_targets):
+        for w in (self.focus_targets, self.focus_scene, self.circ_targets, self.p_targets):
             w.currentIndexChanged.connect(self._save)
         for w in (self.focus_start, self.focus_end):
             w.timeChanged.connect(self._save)
-        for w in (self.circ_night, self.music_bright, self.p_focus, self.p_short, self.p_long, self.p_every):
+        for w in (self.circ_night, self.p_focus, self.p_short, self.p_long, self.p_every):
             w.valueChanged.connect(self._save)
         self.pause_date.dateChanged.connect(self._save)
         for b in (self.p_break_color, self.p_focus_color):
@@ -646,10 +667,6 @@ class FeaturesPage(QScrollArea):
         self.circ_targets.set_value(s.circadian.targets)
         self.circ_bright.setChecked(s.circadian.brightness)
         self.circ_night.setValue(s.circadian.night_brightness)
-        self.music.setChecked(s.music.enabled)
-        self.music_source.setCurrentIndex(max(0, self.music_source.findData(s.music.source)))
-        self.music_targets.set_value(s.music.targets)
-        self.music_bright.setValue(s.music.brightness)
         p = s.pomodoro
         self.p_focus.setValue(p.focus_min)
         self.p_short.setValue(p.short_min)
@@ -703,9 +720,6 @@ class FeaturesPage(QScrollArea):
         s.circadian.targets = self.circ_targets.value()
         s.circadian.brightness = self.circ_bright.isChecked()
         s.circadian.night_brightness = self.circ_night.value()
-        s.music.source = self.music_source.currentData()
-        s.music.targets = self.music_targets.value()
-        s.music.brightness = self.music_bright.value()
         p = s.pomodoro
         p.focus_min, p.short_min, p.long_min = self.p_focus.value(), self.p_short.value(), self.p_long.value()
         p.every = self.p_every.value()
@@ -715,8 +729,6 @@ class FeaturesPage(QScrollArea):
         self.pause_date.setEnabled(self.pause.isChecked())
         if self.circ.isChecked() != s.circadian.enabled:
             auto.set_circadian(self.circ.isChecked())
-        if self.music.isChecked() != s.music.enabled:
-            auto.set_music(self.music.isChecked())
         self.tab.win.changed()
 
 

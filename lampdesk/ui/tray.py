@@ -56,13 +56,9 @@ def fill_automation_menu(m: QMenu, auto, open_settings, parent=None) -> None:
     m.addSeparator()
     check(tr("mode.discord"), s.discord_mode, auto.set_discord)
     check(tr("mode.circadian"), s.circadian.enabled, auto.set_circadian)
-    for source in ("cover", "screen"):
-        on = s.music.enabled and s.music.source == source
-
-        def pick(checked, src=source):
-            s.music.source = src
-            auto.set_music(checked)
-        check(tr(f"mode.music_{source}"), on, pick)
+    # cenas que acompanham a tela / a música, no ambiente deste PC
+    check(tr("menu.ambilight"), auto.reactive_on("screen"), lambda _=False: auto.toggle_reactive("screen"))
+    check(tr("menu.music"), auto.reactive_on("cover"), lambda _=False: auto.toggle_reactive("cover"))
     m.addSeparator()
     pomo = auto.pomodoro
     if pomo.running():

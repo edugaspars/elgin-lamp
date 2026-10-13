@@ -23,7 +23,7 @@ from .storage import REACTIVE_MODES, ROOM, Rule, Scene
 
 log = logging.getLogger(__name__)
 
-PRIO_ALERT, PRIO_FOCUS, PRIO_AWAY, PRIO_MODE, PRIO_MUSIC, PRIO_SCENE = 100, 90, 60, 40, 30, 20
+PRIO_ALERT, PRIO_FOCUS, PRIO_AWAY, PRIO_MODE, PRIO_SCENE = 100, 90, 60, 40, 20
 SCREEN_SCENE = "scene:screen"  # camada da cena reativa Ambilight escolhida no painel
 COVER_SCENE = "scene:cover"    # camada da cena reativa Música (capa do álbum)
 
@@ -81,7 +81,7 @@ def default_rules(tr, cfg) -> List[Rule]:
     ]
 
 
-RULES_VERSION = 5
+RULES_VERSION = 6
 
 
 def upgrade_rules(cfg) -> bool:
@@ -115,6 +115,15 @@ def upgrade_rules(cfg) -> bool:
         for holder in [*cfg.rules, s.circadian, s.music, s.pomodoro, s.focus]:
             if holder.targets == ["*"]:
                 holder.targets = [ROOM]
+                changed = True
+    if cfg.settings.rules_version < 6:
+        # "Luz da música/tela" separadas saíram: ficam as cenas Ambilight e Música
+        if cfg.settings.music.enabled:
+            cfg.settings.music.enabled = False
+            changed = True
+        for r in cfg.rules:
+            if r.action == "music":
+                r.action, r.enabled = "screen", False
                 changed = True
     if cfg.settings.rules_version != RULES_VERSION:
         cfg.settings.rules_version = RULES_VERSION
@@ -477,7 +486,7 @@ class Automation(QObject):
         self._hotkeys = None
         self._hotkey_map: Dict[int, str] = {}
         self._hotkey_sig = None
-        self._music_color = None
+        self._suspended: set = set()  # regras paradas pelo ✕ do painel até o gatilho acabar
         self._cover_busy = False
         self.cover = CoverTracker()
         self._screen_rules: Dict[str, tuple] = {}  # camada que segue a tela -> (prioridade, [lâmpadas])
@@ -498,8 +507,6 @@ class Automation(QObject):
         self._circ_timer.timeout.connect(self.circadian_tick)
         self._cover_timer = QTimer(self, interval=1000)
         self._cover_timer.timeout.connect(self._poll_cover)
-        self._screen_timer = QTimer(self, interval=500)
-        self._screen_timer.timeout.connect(self._poll_screen)
         self._ambi_timer = QTimer(self, interval=500)
         self._ambi_timer.timeout.connect(self._ambi_tick)
         self._clock.start()
@@ -534,7 +541,7 @@ class Automation(QObject):
             self._hotkeys.stop()
         if self.watcher:
             self.watcher.stop()
-        for t in (self._clock, self._circ_timer, self._cover_timer, self._screen_timer, self._ambi_timer):
+        for t in (self._clock, self._circ_timer, self._cover_timer, self._ambi_timer):
             t.stop()
         self.pomodoro.stop()
         for f in list(self._fades):
@@ -552,7 +559,7 @@ class Automation(QObject):
         if not self._screen_rules:
             self._ambi_timer.stop()
         self._setup_hotkeys()
-        self._setup_music()
+        self._update_cover_timer()
         self._apply_focus_lock()
         self.evaluate_states()
         self.changed.emit()
@@ -708,8 +715,6 @@ class Automation(QObject):
                 self.set_discord(not self.cfg.settings.discord_mode)
             elif a == "circadian":
                 self.set_circadian(not self.cfg.settings.circadian.enabled)
-            elif a == "music":
-                self.set_music(not self.cfg.settings.music.enabled)
 
     def fire(self, trigger: str, rules=None) -> int:
         now, loc, modes = self._now(), self.cfg.settings.location, self.modes()
@@ -734,6 +739,10 @@ class Automation(QObject):
             self._state_rule(r, active, FULLSCREEN_DEBOUNCE_S, now, wall, PRIO_MODE)
 
     def _state_rule(self, r: Rule, active: bool, delay: float, now: float, wall, prio: int) -> None:
+        if active and r.id in self._suspended:
+            return  # parada pelo ✕ do painel: só volta quando o gatilho acabar e começar de novo
+        if not active:
+            self._suspended.discard(r.id)
         if active:
             since = self._since.setdefault(r.id, now)
             if r.id not in self._active and now - since >= delay and \
@@ -747,6 +756,7 @@ class Automation(QObject):
     def _enter(self, r: Rule, prio: int) -> None:
         key = f"rule:{r.id}"
         self._active[r.id] = key
+        QTimer.singleShot(0, self.changed.emit)  # o painel mostra a regra ativa
         log.info("Automação '%s' começou", r.name)
         sc = self.cfg.scene(r.scene_id) if r.action == "scene" else None
         if self._follows_screen(r):
@@ -761,6 +771,7 @@ class Automation(QObject):
     def _exit(self, r: Rule) -> None:
         key = self._active.pop(r.id)
         log.info("Automação '%s' terminou", r.name)
+        QTimer.singleShot(0, self.changed.emit)
         self._screen_rules.pop(key, None)
         if not self._screen_rules:
             self._ambi_timer.stop()
@@ -872,12 +883,6 @@ class Automation(QObject):
             self.circadian_tick()
         self.changed.emit()
 
-    def set_music(self, on: bool) -> None:
-        self.cfg.settings.music.enabled = on
-        self.store.save()
-        self._setup_music()
-        self.changed.emit()
-
     def set_pause(self, until: str) -> None:
         self.cfg.settings.pause_until = until
         self.store.save()
@@ -974,30 +979,6 @@ class Automation(QObject):
                 svc.apply_scene([lid], look)
 
     # ---------------------------------------------------------------- música ---
-    def _setup_music(self) -> None:
-        m = self.cfg.settings.music
-        screen = m.enabled and m.source == "screen"
-        (self._screen_timer.start if screen else self._screen_timer.stop)()
-        self._update_cover_timer()
-        if not m.enabled and self.stack.active("music"):
-            self.stack.pop("music")
-            self._music_color = None
-            if not self._cover_layers:
-                self.last_track = ""
-                self.cover = CoverTracker()
-
-    def set_music_color(self, rgb) -> None:
-        """Nova cor da música/tela (None = nada tocando: a luz volta ao normal)."""
-        m = self.cfg.settings.music
-        if rgb is None:
-            self._music_color = None
-            self.stack.pop("music")
-            return
-        if self._music_color is not None and R.color_distance(rgb, self._music_color) < 24:
-            return
-        self._music_color = tuple(rgb)
-        self.stack.push("music", PRIO_MUSIC, self.ids(m.targets), colour_look(rgb, m.brightness))
-
     def _poll_cover(self) -> None:
         if self._cover_busy or not winsys.WINDOWS:
             return
@@ -1016,31 +997,19 @@ class Automation(QObject):
 
     def _on_cover(self, res) -> None:
         self._cover_busy = False
-        m = self.cfg.settings.music
-        feature = m.enabled and m.source == "cover"
-        if not feature and not self._cover_layers:
+        if not self._cover_layers:
             return
         status, key, digest, color = res
         what = self.cover.update(status, key, digest)
         if what == "stop":
             self.last_track = ""
-            if feature:
-                self.set_music_color(None)
             self._cover_changed(None)
             self.changed.emit()
         elif what == "color":
             self.last_track = key
             if color is not None:
-                if feature:
-                    self.set_music_color(color)
                 self._cover_changed(color)
             self.changed.emit()
-
-    def _poll_screen(self) -> None:
-        img = grab_primary()
-        rgb = image_color(img) if img is not None else None
-        if rgb is not None:
-            self.set_music_color(rgb)
 
     # ------------------------------------------------- cor da tela (jogo/filme) ---
     def screen_look(self, fresh: bool = False, pixels=None):
@@ -1093,12 +1062,14 @@ class Automation(QObject):
         self._screen_rules[key] = (prio, list(ids))
         self.stack.push(key, prio, ids, self.screen_look(fresh=True))
         self._ambi_timer.start()
+        self.changed.emit()
 
     def _stop_screen(self, key: str, restore: bool = True) -> None:
         self._screen_rules.pop(key, None)
         self.stack.pop(key, restore=restore)
         if not self._screen_rules:
             self._ambi_timer.stop()
+        self.changed.emit()
 
     def _on_reactive_scene(self, ids, scene=None) -> None:
         """Escolheram uma cena reativa: a luz segue a tela (Ambilight) ou a capa do álbum (Música)
@@ -1122,16 +1093,78 @@ class Automation(QObject):
         else:
             self.cover.digest = None     # relê a capa na próxima consulta (em até 1 s)
         self._update_cover_timer()
+        self.changed.emit()
 
     def _stop_cover(self, key: str, restore: bool = True) -> None:
         self._cover_layers.pop(key, None)
         self.stack.pop(key, restore=restore)
         self._update_cover_timer()
+        self.changed.emit()
+
+    # ------------------------------------------ o que manda na luz agora (painel) ---
+    def controller(self, ids):
+        """(chave, nome) do que está controlando essas lâmpadas agora, para o painel mostrar
+        com um ✕; None se nada (piscadas e modo foco não contam: têm o próprio indicador)."""
+        ids = set(ids)
+        best = None
+        names = {r.id: r.name for r in self.cfg.rules}
+        for key in self.stack.keys():
+            layer = self.stack._layers[key]
+            if not (layer[2] & ids) or key.startswith("blink:") or key == "focus":
+                continue
+            if key == SCREEN_SCENE:
+                label = self._scene_name("screen")
+            elif key == COVER_SCENE:
+                label = self._scene_name("cover")
+            elif key.startswith("rule:"):
+                label = names.get(key[5:], "")
+            else:
+                continue
+            if best is None or layer[0] > best[0]:
+                best = (layer[0], key, label)
+        for key, (prio, lids, _b) in self._cover_layers.items():  # cena Música esperando o play
+            if key == COVER_SCENE and set(lids) & ids and (best is None or prio > best[0]):
+                best = (prio, key, self._scene_name("cover"))
+        return (best[1], best[2]) if best else None
+
+    def _scene_name(self, mode: str) -> str:
+        from .i18n import tr
+        sc = next((x for x in self.cfg.scenes if x.mode == mode), None)
+        return sc.name if sc else tr("scene.ambilight" if mode == "screen" else "scene.music")
+
+    def stop(self, key: str) -> None:
+        """✕ do painel: para na hora e a luz volta ao que era."""
+        if key in (SCREEN_SCENE, COVER_SCENE):
+            lids = (self._screen_rules.get(key) or self._cover_layers.get(key) or (0, []))[1]
+            (self._stop_screen if key == SCREEN_SCENE else self._stop_cover)(key)
+            for lid in lids:
+                self.service.set_scene_mark(lid, None)
+        elif key.startswith("rule:"):
+            rid = key[5:]
+            rule = next((r for r in self.cfg.rules if r.id == rid), None)
+            self._suspended.add(rid)
+            if rule is not None and rid in self._active:
+                self._exit(rule)
+        self.changed.emit()
+
+    def reactive_on(self, mode: str) -> bool:
+        """Ambilight ("screen") ou Música ("cover") ligada no ambiente deste PC?"""
+        key = SCREEN_SCENE if mode == "screen" else COVER_SCENE
+        layers = self._screen_rules if mode == "screen" else self._cover_layers
+        room = set(self.ids([ROOM]))
+        return key in layers and bool(set(layers[key][1]) & room)
+
+    def toggle_reactive(self, mode: str) -> None:
+        """⚡ do painel: liga/desliga a cena Ambilight ou Música no ambiente deste PC."""
+        if self.reactive_on(mode):
+            self.stop(SCREEN_SCENE if mode == "screen" else COVER_SCENE)
+            return
+        sc = next((x for x in self.cfg.scenes if x.mode == mode), None) or \
+            Scene(self._scene_name(mode), mode, 100, 50)
+        self.service.apply_scene(self.ids([ROOM]), sc)
 
     def _update_cover_timer(self) -> None:
-        m = self.cfg.settings.music
-        wanted = (m.enabled and m.source == "cover") or bool(self._cover_layers)
-        (self._cover_timer.start if wanted else self._cover_timer.stop)()
+        (self._cover_timer.start if self._cover_layers else self._cover_timer.stop)()
 
     def _cover_changed(self, rgb) -> None:
         """Cor da capa mudou (None = parou de tocar: as camadas somem e a luz volta ao que era)."""

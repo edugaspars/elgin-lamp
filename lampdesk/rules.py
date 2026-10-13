@@ -18,7 +18,7 @@ TRIGGERS = STATE_TRIGGERS + EVENT_TRIGGERS
 # Ações que só "pintam" a lâmpada (podem durar enquanto um estado durar).
 LOOK_ACTIONS = ("on", "off", "scene", "color", "brightness")
 ACTIONS = LOOK_ACTIONS + ("screen", "toggle", "brightness_step", "blink", "fade_in", "fade_out", "off_later",
-                          "pomodoro", "focus", "discord_mode", "circadian", "music")
+                          "pomodoro", "focus", "discord_mode", "circadian")
 
 MODES = ("discord",)
 

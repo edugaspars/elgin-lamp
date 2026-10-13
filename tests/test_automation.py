@@ -222,15 +222,6 @@ def test_hotkey_runs_rule_as_user(env):
     assert seen == ["power"]
 
 
-def test_music_layer_and_restore(env):
-    qapp, store, svc, auto = env
-    store.config.settings.music.enabled = True
-    auto.set_music_color((255, 0, 0))
-    assert wait(qapp, lambda: svc.state("a").color == (255, 0, 0) and svc.state("a").brightness == 80)
-    auto.set_music_color(None)
-    assert wait(qapp, lambda: svc.state("a").mode == "white" and svc.state("a").brightness == 40)
-
-
 def test_pomodoro_cycle(env):
     qapp, store, svc, auto = env
     calls = []
@@ -291,16 +282,6 @@ def test_cover_tracker_pause_and_track_skip():
     assert t.update("paused") == "keep"                 # só uma vez
     assert t.want_cover("A - x")
     assert t.update("playing", "A - x", "capa-a") == "color"  # deu play: a cor volta
-
-
-def test_cover_events_drive_the_music_layer(env):
-    qapp, store, svc, auto = env
-    store.config.settings.music.enabled = True
-    auto._on_cover(("playing", "A - x", "capa-a", (255, 0, 0)))
-    assert wait(qapp, lambda: svc.state("a").color == (255, 0, 0))
-    for _ in range(2):
-        auto._on_cover(("paused", "", None, None))
-    assert wait(qapp, lambda: svc.state("a").mode == "white" and svc.state("a").brightness == 40)
 
 
 def test_screen_light_uses_only_the_primary_monitor(qapp):
@@ -542,3 +523,54 @@ def test_upgrade_moves_all_lamps_automations_to_the_room(qapp):
     assert cfg.rules[0].targets == [ROOM] and cfg.rules[1].targets == ["g1"]  # escolha específica fica
     assert cfg.settings.circadian.targets == [ROOM]
     assert cfg.routines[0].targets == ["*"]  # rotinas continuam na casa toda
+
+
+def test_panel_controller_and_stop(env, monkeypatch):
+    qapp, store, svc, auto = env
+    from lampdesk import automation
+    from lampdesk.storage import Scene
+    monkeypatch.setattr(automation, "grab_primary", lambda: _image((20, 40, 230)))
+    assert auto.controller(["a"]) is None
+    svc.apply_scene(["a"], Scene("Ambilight", "screen", 100, 50))
+    assert auto.controller(["a"])[1] == "Ambilight"
+    assert auto.reactive_on("screen")
+    assert wait(qapp, lambda: svc.state("a").mode == "colour")
+    auto.stop(auto.controller(["a"])[0])                # ✕ do painel
+    assert auto.controller(["a"]) is None and not auto.reactive_on("screen")
+    assert wait(qapp, lambda: svc.state("a").mode == "white" and svc.state("a").brightness == 40)
+    assert svc.scene_mark("a") is None
+
+
+def test_stop_suspends_rule_until_trigger_ends(env, monkeypatch):
+    qapp, store, svc, auto = env
+    from lampdesk import automation
+    monkeypatch.setattr(automation, "grab_primary", lambda: _image((230, 20, 20)))
+    r = add_rule(store, auto, name="Modo jogo / filme", trigger="fullscreen", action="screen", targets=["a"])
+    auto.fullscreen = True
+    auto.evaluate_states()
+    key, label = auto.controller(["a"])
+    assert label == "Modo jogo / filme"
+    auto.stop(key)
+    assert wait(qapp, lambda: svc.state("a").mode == "white" and svc.state("a").brightness == 40)
+    auto.evaluate_states()                              # ainda em tela cheia: continua parada
+    assert r.id not in auto._active and auto.controller(["a"]) is None
+    auto.fullscreen = False
+    auto.evaluate_states()
+    auto.fullscreen = True                              # nova tela cheia: volta a valer
+    auto.evaluate_states()
+    assert r.id in auto._active
+
+
+def test_toggle_reactive_from_menu_uses_the_room(env, monkeypatch):
+    qapp, store, svc, auto = env
+    from lampdesk import automation
+    from lampdesk.storage import Scene
+    monkeypatch.setattr(automation, "grab_primary", lambda: _image((20, 230, 40)))
+    store.config.scenes.append(Scene("Ambilight", "screen", 100, 50))
+    store.config.settings.room = ["b"]
+    auto.toggle_reactive("screen")
+    assert wait(qapp, lambda: svc.state("b").mode == "colour")
+    assert svc.state("a").mode == "white"               # fora do ambiente: não mexe
+    auto.toggle_reactive("screen")
+    assert not auto.reactive_on("screen")
+    assert wait(qapp, lambda: svc.state("b").mode == "white")

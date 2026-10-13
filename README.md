@@ -49,7 +49,7 @@ Smart bulbs are great until you need them **while you're at your computer**. Gra
 | 🤖 **Automations** | "When / If / Then" editor: turn off when the PC locks, game/movie mode in fullscreen with the screen color (ambilight), sunrise when the PC turns on, fade out, turn off 2 min after the PC shuts down, blinking reminders, global hotkeys. |
 | 🎯 **Focus mode** | For work, study and meetings: a work light and no automatic changes (only the pomodoro blinks). Button next to the power button, plus work hours (Mon–Fri, 8:00 to 17:50). |
 | 💬 **Discord mode** | A message blinks blue, a call blinks green and white (reads Windows notifications). |
-| 🌅 **Daylight cycle, music and pomodoro** | Cool light by day and warm at night, color from the album cover or the screen, a pomodoro that blinks at the end of each step, and a vacation pause. |
+| 🌅 **Daylight cycle and pomodoro** | Cool light by day and warm at night, a pomodoro that blinks at the end of each step, and a vacation pause. The Ambilight and Music scenes toggle from the ⚡, and the panel footer shows what is controlling the light (with ✕ to stop). |
 | 🔐 **Privacy** | IPs and keys stay **encrypted** on your PC only. Nothing goes into the repository. |
 | 🔑 **Easy setup** | Finds the bulbs on your network and gets the key with a **QR code** scanned in Smart Life. |
 | 🌎 **English and Portuguese** | Follows your system language; switch anytime. |
@@ -182,7 +182,7 @@ Credentials are not saved.
 | Pick an exact color | Click the **Color** card again |
 | Routines and sunrise/sunset | The ⏰ icon in the panel footer |
 | Focus mode (locks automations) | The 🎯 button next to the power button in the panel |
-| Discord mode, daylight cycle, music, pomodoro, vacation | The ⚡ icon in the panel footer (or **Automations** in the tray menu) |
+| Discord mode, Ambilight, Music, daylight cycle, pomodoro, vacation | The ⚡ icon in the panel footer (or **Automations** in the tray menu) |
 
 ### Automations
 

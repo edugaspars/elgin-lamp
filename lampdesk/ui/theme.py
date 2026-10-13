@@ -230,6 +230,7 @@ QPushButton[primary="true"] {{ background: {c['primary']}; color: {c['primary_te
     font-weight: 600; }}
 QPushButton[primary="true"]:hover {{ background: {c['primary_hover']}; }}
 QPushButton[danger="true"] {{ color: {c['danger']}; }}
+QPushButton[chip="true"] {{ padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }}
 QPushButton[day="true"] {{ min-width: 34px; padding: 6px 4px; border-radius: 17px; }}
 QPushButton[day="true"]:checked {{ background: {c['primary']}; color: {c['primary_text']}; border: none; }}
 QCheckBox, QRadioButton {{ spacing: 8px; background: transparent; }}
