@@ -23,7 +23,8 @@ No Linux, o Qt precisa de `libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1
 
 - `lampdesk/lamp.py`: protocolo Tuya (LiveBulb mantém conexão aberta). Sem Qt.
 - `lampdesk/service.py`: ponte entre as conexões e a interface. Comandos dentro de `service.automated()`
-  vêm das automações; os demais contam como mudança manual (`userCommand`).
+  vêm das automações; os demais contam como mudança manual (`userCommand`). Lâmpadas em `service.locked`
+  (modo foco) ignoram comandos automáticos, salvo `automated(bypass_lock=True)` (o próprio foco e o pomodoro).
 - `lampdesk/automation.py`: motor das automações (camadas de luz com prioridade, piscar, fades, ciclo do dia,
   música, pomodoro). `rules.py` tem a lógica sem Qt; `winsys.py`, as leituras do Windows (ctypes/winrt).
 - `lampdesk/storage.py` + `crypto.py`: configuração criptografada (DPAPI / Fernet + keyring).

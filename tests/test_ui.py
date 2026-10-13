@@ -30,6 +30,7 @@ def wait(qapp, cond, timeout=3.0):
 def app(qapp):
     from lampdesk.app import LampDeskApp
     a = LampDeskApp(qapp, demo=True)
+    a.store.config.settings.focus.schedule = False  # o horário de trabalho não interfere nos testes
     yield a
     a.service.shutdown()
     a.popup.hide()
@@ -238,3 +239,21 @@ def test_groups_in_panel_and_menus(qapp, app):
     assert any(":" in a.text() for a in m.actions())  # mostra o tempo restante
     app.automation.pomodoro.stop()
     app.tray.rebuild()
+
+
+def test_focus_button_in_panel(qapp, app):
+    from PySide6.QtCore import QRect
+    popup = app.popup
+    popup.show_at(QRect(600, 580, 20, 20))
+    assert not popup.focus.on
+    popup._toggle_focus()
+    assert app.automation.is_focus() and popup.focus.on
+    assert app.service.locked == set(app.service.ids("*"))
+    assert popup.status_text.text().startswith(tr_focus())
+    popup._toggle_focus()
+    assert not app.automation.is_focus() and not app.service.locked
+
+
+def tr_focus():
+    from lampdesk.i18n import tr
+    return tr("mode.focus")

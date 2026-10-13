@@ -128,6 +128,18 @@ class Pomodoro:
 
 
 @dataclass
+class Focus:
+    """Modo foco (trabalho/estudo/reuniões): automações não mexem na luz destas lâmpadas."""
+    active: bool = False
+    targets: List[str] = field(default_factory=lambda: ["*"])
+    scene_id: str = ""            # cena aplicada ao ligar ("" = cena Foco)
+    schedule: bool = True         # liga/desliga sozinho no horário de trabalho
+    start: str = "08:00"
+    end: str = "17:50"
+    days: List[int] = field(default_factory=lambda: [0, 1, 2, 3, 4])
+
+
+@dataclass
 class Location:
     label: str = ""
     latitude: Optional[float] = None
@@ -152,6 +164,7 @@ class Settings:
     circadian: Circadian = field(default_factory=Circadian)
     music: Music = field(default_factory=Music)
     pomodoro: Pomodoro = field(default_factory=Pomodoro)
+    focus: Focus = field(default_factory=Focus)
     rules_seeded: bool = False
     rules_version: int = 0        # exemplos atualizados (ver automation.upgrade_rules)
 
@@ -199,7 +212,7 @@ class Config:
         for g in self.groups:
             g.members = [m for m in g.members if m != item_id]
         s = self.settings
-        for holder in [*self.routines, *self.rules, s.circadian, s.music, s.pomodoro]:
+        for holder in [*self.routines, *self.rules, s.circadian, s.music, s.pomodoro, s.focus]:
             holder.targets = [t for t in holder.targets if t != item_id] or ["*"]
         if s.last_selected == item_id:
             s.last_selected = "*"
@@ -232,6 +245,7 @@ class Config:
             circadian=one(Circadian, s.get("circadian")),
             music=one(Music, s.get("music")),
             pomodoro=one(Pomodoro, s.get("pomodoro")),
+            focus=one(Focus, s.get("focus")),
             rules_seeded=bool(s.get("rules_seeded", False)),
             rules_version=int(s.get("rules_version", 0) or 0),
         )

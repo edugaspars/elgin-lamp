@@ -52,6 +52,8 @@ def fill_automation_menu(m: QMenu, auto, open_settings, parent=None) -> None:
         a.triggered.connect(slot)
         m.addAction(a)
 
+    check(tr("mode.focus"), s.focus.active, auto.set_focus)
+    m.addSeparator()
     check(tr("mode.discord"), s.discord_mode, auto.set_discord)
     check(tr("mode.circadian"), s.circadian.enabled, auto.set_circadian)
     for source in ("cover", "screen"):

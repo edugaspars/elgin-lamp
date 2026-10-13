@@ -189,6 +189,16 @@ STRINGS = {
         "groups.new": "Novo grupo",
         "groups.edit": "Editar grupo",
         "groups.default_name": "Grupo {n}",
+        "mode.focus": "Modo foco",
+        "focus.tooltip": "Modo foco: luz de trabalho, sem mudanças automáticas",
+        "feature.focus_on": "Ligar o modo foco agora",
+        "feature.focus_scene": "Luz ao ligar",
+        "feature.focus_schedule": "Ligar sozinho no horário de trabalho",
+        "feature.focus_note": "Para trabalho, estudo e reuniões: ao ligar, aplica a luz escolhida e nenhuma automação, "
+                              "rotina ou recurso mexe nessas lâmpadas (só os avisos do pomodoro piscam). Você ainda "
+                              "pode mudar a luz à mão. Ao desligar, a luz volta ao que estava. Também liga pelo botão "
+                              "ao lado do liga/desliga no painel.",
+        "action.focus": "Ligar/desligar modo foco",
         "mode.discord": "Modo Discord",
         "mode.circadian": "Ciclo do dia",
         "mode.music_cover": "Luz da música (capa do álbum)",
@@ -521,6 +531,16 @@ STRINGS = {
         "groups.new": "New group",
         "groups.edit": "Edit group",
         "groups.default_name": "Group {n}",
+        "mode.focus": "Focus mode",
+        "focus.tooltip": "Focus mode: work light, no automatic changes",
+        "feature.focus_on": "Turn on focus mode now",
+        "feature.focus_scene": "Light when it turns on",
+        "feature.focus_schedule": "Turn on by itself during work hours",
+        "feature.focus_note": "For work, study and meetings: when on, it applies the chosen light and no automation, "
+                              "routine or feature touches these lamps (only pomodoro alerts blink). You can still "
+                              "change the light by hand. When it turns off, the light goes back to how it was. "
+                              "You can also toggle it with the button next to the power button in the panel.",
+        "action.focus": "Toggle focus mode",
         "mode.discord": "Discord mode",
         "mode.circadian": "Daylight cycle",
         "mode.music_cover": "Music light (album cover)",

@@ -47,6 +47,7 @@ O **LampDesk** coloca suas lâmpadas a **um clique**, ao lado do relógio do Win
 | ⏰ **Rotinas** | Por horário e dia da semana ou pelo **nascer/pôr do sol**, com deslocamento em minutos. |
 | 🌙 **Timer** | "Desligar em 30 minutos". |
 | 🤖 **Automações** | Editor "Quando / Se / Então": apagar ao bloquear o PC, modo jogo/filme em tela cheia com a cor da tela (ambilight), amanhecer ao ligar o PC, apagar aos poucos, apagar 2 min depois de desligar o PC, lembretes que piscam, atalhos de teclado globais. |
+| 🎯 **Modo foco** | Para trabalho, estudo e reuniões: luz de trabalho e nenhuma mudança automática (só o pomodoro pisca). Botão ao lado do liga/desliga e horário de trabalho (seg–sex, 8h às 17h50). |
 | 💬 **Modo Discord** | Mensagem pisca azul, ligação pisca verde e branco (lê as notificações do Windows). |
 | 🌅 **Ciclo do dia, música e pomodoro** | Luz fria de dia e quente à noite, cor da capa do álbum ou da tela, pomodoro que pisca no fim de cada etapa e pausa de férias. |
 | 🔐 **Privacidade** | IP e chaves ficam só no seu PC, **criptografados**. Nada vai para o repositório. |
@@ -180,6 +181,7 @@ As credenciais não são salvas.
 | Trocar o que o slider controla | Clique nos cards **Brilho**, **Branco** ou **Cor** |
 | Escolher uma cor exata | Clique de novo no card **Cor** |
 | Rotinas e nascer/pôr do sol | Ícone ⏰ no rodapé do painel |
+| Modo foco (trava as automações) | Botão 🎯 ao lado do liga/desliga no painel |
 | Modo Discord, ciclo do dia, música, pomodoro, férias | Ícone ⚡ no rodapé do painel (ou **Automações** no menu da bandeja) |
 
 ### Automações

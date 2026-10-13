@@ -23,7 +23,7 @@ from .storage import Rule, Scene
 
 log = logging.getLogger(__name__)
 
-PRIO_ALERT, PRIO_AWAY, PRIO_MODE, PRIO_MUSIC = 100, 60, 40, 30
+PRIO_ALERT, PRIO_FOCUS, PRIO_AWAY, PRIO_MODE, PRIO_MUSIC = 100, 90, 60, 40, 30
 
 BOOT_WINDOW_S = 15 * 60       # "ao ligar o PC": só se o PC ligou há pouco (não a cada abertura do app)
 FULLSCREEN_DEBOUNCE_S = 2     # alt-tab rápido não troca a luz
@@ -107,7 +107,7 @@ class LightStack:
 
     def __init__(self, service):
         self.service = service
-        self._layers: Dict[str, list] = {}   # chave -> [prioridade, ordem, ids, visual]
+        self._layers: Dict[str, list] = {}   # chave -> [prioridade, ordem, ids, visual, passa a trava]
         self._base: Dict[str, object] = {}   # lid -> visual de antes da primeira camada
         self._shown: Dict[str, object] = {}  # lid -> assinatura do visual aplicado
         self._order = 0
@@ -130,17 +130,20 @@ class LightStack:
 
     def _top(self, lid):
         best = None
-        for key, (prio, order, ids, look) in self._layers.items():
+        for key, (prio, order, ids, look, bypass) in self._layers.items():
             if lid in ids and (best is None or (prio, order) > best[0]):
-                best = ((prio, order), key, look)
+                best = ((prio, order), key, look, bypass)
         return best
 
-    def push(self, key: str, priority: int, ids, look) -> None:
-        """Cria ou atualiza uma camada (o visual pode mudar a cada chamada, ex.: piscar, música)."""
+    def push(self, key: str, priority: int, ids, look, bypass: bool = False) -> None:
+        """Cria ou atualiza uma camada (o visual pode mudar a cada chamada, ex.: piscar, música).
+
+        `bypass`: a camada passa pela trava do modo foco (o próprio foco e o pomodoro).
+        """
         layer = self._layers.get(key)
         if layer is None:
             self._order += 1
-            layer = self._layers[key] = [priority, self._order, set(), look]
+            layer = self._layers[key] = [priority, self._order, set(), look, bypass]
         layer[3] = look
         for lid in ids:
             if lid in layer[2]:
@@ -169,7 +172,7 @@ class LightStack:
             if restore:
                 back.setdefault(repr(_sig(base)), (base, []))[1].append(lid)
         for look, ids in back.values():
-            self._apply(ids, look)
+            self._apply(ids, look, bypass=layer[4])  # quem passou pela trava também volta por ela
 
     def release(self, ids) -> None:
         """Mexeram à mão: as camadas param de mandar nessas lâmpadas e não as "desfazem" depois."""
@@ -178,6 +181,13 @@ class LightStack:
             self._shown.pop(lid, None)
             for layer in self._layers.values():
                 layer[2].discard(lid)
+
+    def refresh(self, ids, force: bool = False) -> None:
+        """Reaplica a camada de cima (`force`: mesmo que já tenha sido aplicada, ex.: fim do foco)."""
+        if force:
+            for lid in ids:
+                self._shown.pop(lid, None)
+        self._refresh(ids)
 
     def _refresh(self, ids) -> None:
         todo = {}
@@ -189,12 +199,12 @@ class LightStack:
             if lid in self._shown and self._shown[lid] == sig:
                 continue
             self._shown[lid] = sig
-            todo.setdefault(repr(sig), (top[2], []))[1].append(lid)
-        for look, lids in todo.values():
-            self._apply(lids, look)
+            todo.setdefault((repr(sig), top[3]), (top[2], []))[1].append(lid)
+        for (_sig_key, bypass), (look, lids) in todo.items():
+            self._apply(lids, look, bypass)
 
-    def _apply(self, ids, look) -> None:
-        with self.service.automated():
+    def _apply(self, ids, look, bypass: bool = False) -> None:
+        with self.service.automated(bypass_lock=bypass):
             paint(self.service, ids, look)
 
 
@@ -304,10 +314,10 @@ class PomodoroTimer(QObject):
         ids = self.auto.ids(self.cfg.targets)
         if self.phase == "focus":
             self.done += 1
-            self.auto.blink(ids, self.cfg.break_color, [0, 0, 0], 3)
+            self.auto.blink(ids, self.cfg.break_color, [0, 0, 0], 3, bypass=True)
             self._begin("long" if self.done % max(1, self.cfg.every) == 0 else "short")
         else:
-            self.auto.blink(ids, self.cfg.focus_color, [0, 0, 0], 3)
+            self.auto.blink(ids, self.cfg.focus_color, [0, 0, 0], 3, bypass=True)
             self._begin("focus")
 
     def _tick(self) -> None:
@@ -445,6 +455,7 @@ class Automation(QObject):
         self._screen_rules: Dict[str, List[str]] = {}  # camada de regra "cor da tela" -> lâmpadas
         self._mood = None             # último visual da tela aplicado
         self._mood_pending = (None, 0)  # troca de tipo (cor/branco/escuro) esperando confirmar
+        self._focus_window = None     # dentro do horário de trabalho na última conferida
 
         service.userCommand.connect(self._on_user)
         self._hotkey.connect(self._on_hotkey, Qt.ConnectionType.QueuedConnection)
@@ -505,6 +516,7 @@ class Automation(QObject):
             self._ambi_timer.stop()
         self._setup_hotkeys()
         self._setup_music()
+        self._apply_focus_lock()
         self.evaluate_states()
         self.changed.emit()
 
@@ -522,7 +534,7 @@ class Automation(QObject):
             QTimer.singleShot(1500, self.circadian_tick)  # acabou de acender: já no tom da hora
 
     # ------------------------------------------------------------- efeitos ---
-    def blink(self, ids, color, color2, times: int) -> None:
+    def blink(self, ids, color, color2, times: int, bypass: bool = False) -> None:
         self._seq += 1
         key = f"blink:{self._seq}"
         steps = [colour_look(color if i % 2 == 0 else color2) for i in range(max(1, times) * 2)]
@@ -535,7 +547,7 @@ class Automation(QObject):
                 timer.deleteLater()
                 self.stack.pop(key)
                 return
-            self.stack.push(key, PRIO_ALERT, ids, steps[state["i"]])
+            self.stack.push(key, PRIO_ALERT, ids, steps[state["i"]], bypass)
             state["i"] += 1
         timer.timeout.connect(step)
         step()
@@ -637,6 +649,8 @@ class Automation(QObject):
                 self.store.save()
             elif a == "pomodoro":
                 self.pomodoro.toggle()
+            elif a == "focus":
+                self.set_focus(not self.cfg.settings.focus.active)
             elif a == "discord_mode":
                 self.set_discord(not self.cfg.settings.discord_mode)
             elif a == "circadian":
@@ -708,6 +722,7 @@ class Automation(QObject):
     def run_time_rules(self) -> None:
         s = self.cfg.settings
         now = self._now()
+        self.focus_schedule(now)
         timed = [r for r in self.cfg.rules if r.trigger in ("time", "sunrise", "sunset")]
         due = scheduler.due(timed, now, s.location, self._fired)  # marca como disparadas mesmo pausadas
         if R.paused(s.pause_until, now.date()):
@@ -736,6 +751,8 @@ class Automation(QObject):
             QTimer.singleShot(5000, lambda: self.startup(force, tries - 1))
             return
         s = self.cfg.settings
+        if s.focus.active:  # as lâmpadas acabaram de conectar: aplica a luz do foco nelas
+            self._push_focus()
         if s.countdown_pending:
             with self.service.automated():
                 self.service.countdown(self.ids(["*"]), 0)
@@ -812,6 +829,63 @@ class Automation(QObject):
 
     def is_paused(self) -> bool:
         return R.paused(self.cfg.settings.pause_until, self._now().date())
+
+    # ------------------------------------------------------------ modo foco ---
+    def focus_ids(self) -> List[str]:
+        return self.ids(self.cfg.settings.focus.targets)
+
+    def focus_scene(self) -> Scene:
+        f = self.cfg.settings.focus
+        sc = self.cfg.scene(f.scene_id)
+        if sc is None:
+            from .i18n import STRINGS
+            names = {STRINGS[lang]["scene.focus"] for lang in STRINGS}
+            sc = next((x for x in self.cfg.scenes if x.name in names), None)
+        return sc or Scene("", "white", 100, 100)
+
+    def _apply_focus_lock(self) -> None:
+        f = self.cfg.settings.focus
+        self.service.locked = set(self.focus_ids()) if f.active else set()
+
+    def _push_focus(self) -> None:
+        self.stack.push("focus", PRIO_FOCUS, self.focus_ids(), self.focus_scene(), bypass=True)
+
+    def set_focus(self, on: bool) -> None:
+        """Modo foco: luz de trabalho e nenhuma automação mexe nas lâmpadas (só o pomodoro pisca).
+
+        Mexer à mão continua livre. Ao desligar, a luz volta ao que era antes do foco.
+        """
+        f = self.cfg.settings.focus
+        was = set(self.service.locked)
+        f.active = on
+        self.store.save()
+        self._apply_focus_lock()
+        if on:
+            self._push_focus()
+        else:
+            self.stack.pop("focus")
+            self.stack.refresh(list(was), force=True)  # camadas que ficaram travadas (música, tela) voltam
+        log.info("Modo foco %s", "ligado" if on else "desligado")
+        self.changed.emit()
+
+    def is_focus(self) -> bool:
+        return self.cfg.settings.focus.active
+
+    def focus_schedule(self, now: Optional[dt.datetime] = None) -> None:
+        """Horário de trabalho: liga ao entrar e desliga ao sair (dá para mudar à mão no meio)."""
+        f = self.cfg.settings.focus
+        if not f.schedule:
+            self._focus_window = None
+            return
+        now = now or self._now()
+        inside = now.weekday() in f.days and R.parse_hhmm(f.start) is not None and \
+            R.parse_hhmm(f.end) is not None and R.in_window(now, f.start, f.end)
+        if inside != self._focus_window:
+            prev, self._focus_window = self._focus_window, inside
+            if inside and not f.active:
+                self.set_focus(True)
+            elif not inside and prev and f.active:
+                self.set_focus(False)  # só desliga se o app viu o horário acabar
 
     # -------------------------------------------------------- ciclo do dia ---
     def circadian_tick(self, now: Optional[dt.datetime] = None) -> None:

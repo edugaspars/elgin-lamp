@@ -12,7 +12,8 @@ from ..i18n import tr
 from ..lamp import LampState, display_rgb, rgb_from_hue
 from . import glass, icons, theme
 from .tray import fill_automation_menu, style_menu
-from .widgets import BigSlider, BulbView, CircleButton, Fader, HeaderSelector, IconButton, Pill, PowerButton, Tile
+from .widgets import (BigSlider, BulbView, CircleButton, Fader, HeaderSelector, IconButton, Pill, PowerButton, Tile,
+                      ToggleCircle)
 
 WIDTH = 400
 SHADOW = 22
@@ -76,6 +77,8 @@ class Popup(QWidget):
         self._build()
         # métodos (e não lambdas): o Qt desconecta sozinho quando o painel é destruído
         service.stateChanged.connect(self._on_state)
+        if automation is not None:
+            automation.changed.connect(self._on_state)  # modo foco ligado pelo horário ou pela bandeja
         service.timersChanged.connect(self._update_timer_tile)
         QApplication.instance().applicationStateChanged.connect(self._on_app_state)
 
@@ -99,8 +102,14 @@ class Popup(QWidget):
         self.selector.clicked.connect(self._choose_lamp)
         self.power = PowerButton()
         self.power.clicked.connect(self._toggle_power)
+        self.focus = ToggleCircle("focus")
+        self.focus.setToolTip(tr("focus.tooltip"))
+        self.focus.clicked.connect(self._toggle_focus)
         head.addWidget(self.selector)
         head.addStretch(1)
+        if self.automation is not None:
+            head.addWidget(self.focus)
+            head.addSpacing(8)
         head.addWidget(self.power)
         v.addLayout(head)
 
@@ -263,6 +272,8 @@ class Popup(QWidget):
         accent = QColor(*display_rgb(s))
         on = s.is_on and s.online
         self.power.set_state(on, accent)
+        if self.automation is not None:
+            self.focus.set_on(self.automation.is_focus())
         self.bulb.set_state(on, accent, s.brightness)
         if accent != self._glow:
             self._glow = accent
@@ -334,6 +345,8 @@ class Popup(QWidget):
         pomo = self.automation.pomodoro if self.automation is not None else None
         if pomo is not None and pomo.running():
             return f"{tr(f'pomodoro.{pomo.phase}')} · {fmt_remaining(pomo.remaining())}"
+        if self.automation is not None and self.automation.is_focus():
+            return f"{tr('mode.focus')} · {self._status}"
         return self._status
 
     # ------------------------------------------------------------- ações ---
@@ -356,6 +369,10 @@ class Popup(QWidget):
 
     def _toggle_power(self):
         self.service.toggle(self.ids())
+
+    def _toggle_focus(self):
+        self.automation.set_focus(not self.automation.is_focus())
+        self.update_view()
 
     def _set_big(self, v):
         text = f"{v}{self._suffix}"

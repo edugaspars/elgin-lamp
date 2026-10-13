@@ -321,7 +321,7 @@ class RuleDialog(_Dialog):
             self.value_spin.setRange(1, 100)
         else:
             self.value_spin.setRange(-100, 100)
-        f.setRowVisible(self.targets, a not in ("pomodoro", "discord_mode", "circadian", "music"))
+        f.setRowVisible(self.targets, a not in ("pomodoro", "focus", "discord_mode", "circadian", "music"))
         lasting = t in R.STATE_TRIGGERS and (a in R.LOOK_ACTIONS or a == "screen")
         f.setRowVisible(self.restore, lasting)
         f.setRowVisible(self.restore_scene, lasting and self.restore.currentData() == "scene")
@@ -479,7 +479,7 @@ def _spin(lo, hi, suffix=" min"):
 
 
 class FeaturesPage(QScrollArea):
-    """Recursos contínuos: modo Discord, ciclo do dia, música, pomodoro e férias."""
+    """Recursos contínuos: modo foco, modo Discord, ciclo do dia, música, pomodoro e férias."""
 
     def __init__(self, tab):
         super().__init__()
@@ -504,8 +504,35 @@ class FeaturesPage(QScrollArea):
                 g.addWidget(w, row, 1)
             row += 1
 
+        # modo foco
+        add(None, section(tr("mode.focus")))
+        self.focus_on = QCheckBox(tr("feature.focus_on"))
+        add(None, self.focus_on)
+        self.focus_targets = TargetCombo(cfg, cfg.settings.focus.targets)
+        add(tr("routine.targets"), self.focus_targets)
+        self.focus_scene = QComboBox()
+        for sc in cfg.scenes:
+            self.focus_scene.addItem(sc.name, sc.id)
+        add(tr("feature.focus_scene"), self.focus_scene)
+        self.focus_schedule = QCheckBox(tr("feature.focus_schedule"))
+        self.focus_start = QTimeEdit()
+        self.focus_end = QTimeEdit()
+        for w in (self.focus_start, self.focus_end):
+            w.setDisplayFormat("HH:mm")
+        add(None, row_widget(self.focus_schedule, self.focus_start, QLabel("–"), self.focus_end))
+        self.focus_days = []
+        for i, name in enumerate(tr("days.short").split(",")):
+            b = QPushButton(name)
+            b.setCheckable(True)
+            b.setProperty("day", True)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.toggled.connect(self._save)
+            self.focus_days.append(b)
+        add(tr("routine.days"), row_widget(*self.focus_days))
+        add(None, muted(tr("feature.focus_note")))
+
         # modo Discord
-        add(None, section(tr("mode.discord")))
+        add(None, section(tr("mode.discord"), 14))
         self.discord = QCheckBox(tr("feature.discord_on"))
         add(None, self.discord)
         add(None, muted(tr("feature.discord_note")))
@@ -564,16 +591,21 @@ class FeaturesPage(QScrollArea):
         g.setRowStretch(row, 1)
 
         self.refresh()
-        for w in (self.discord, self.circ, self.circ_bright, self.music, self.pause):
+        for w in (self.focus_on, self.focus_schedule, self.discord, self.circ, self.circ_bright, self.music,
+                  self.pause):
             w.toggled.connect(self._save)
-        for w in (self.circ_targets, self.music_source, self.music_targets, self.p_targets):
+        for w in (self.focus_targets, self.focus_scene, self.circ_targets, self.music_source, self.music_targets,
+                  self.p_targets):
             w.currentIndexChanged.connect(self._save)
+        for w in (self.focus_start, self.focus_end):
+            w.timeChanged.connect(self._save)
         for w in (self.circ_night, self.music_bright, self.p_focus, self.p_short, self.p_long, self.p_every):
             w.valueChanged.connect(self._save)
         self.pause_date.dateChanged.connect(self._save)
         for b in (self.p_break_color, self.p_focus_color):
             b.clicked.connect(lambda: QTimer.singleShot(0, self._save))  # depois do diálogo de cor
         self.tab.win.automation.pomodoro.changed.connect(self._pomodoro_label)
+        self.tab.win.automation.changed.connect(self._sync_focus)  # ligado pelo painel ou pelo horário
 
     @property
     def cfg(self):
@@ -586,6 +618,18 @@ class FeaturesPage(QScrollArea):
         s = self.cfg.settings
         for w in self._widgets():
             w.blockSignals(True)
+        f = s.focus
+        self.focus_on.setChecked(f.active)
+        self.focus_targets.set_value(f.targets)
+        self.focus_scene.setCurrentIndex(max(0, self.focus_scene.findData(
+            f.scene_id or self.tab.win.automation.focus_scene().id)))
+        self.focus_schedule.setChecked(f.schedule)
+        self.focus_start.setTime(QTime.fromString(f.start, "HH:mm"))
+        self.focus_end.setTime(QTime.fromString(f.end, "HH:mm"))
+        for i, b in enumerate(self.focus_days):
+            b.setChecked(i in f.days)
+        for w in (self.focus_start, self.focus_end, *self.focus_days):
+            w.setEnabled(f.schedule)
         self.discord.setChecked(s.discord_mode)
         self.circ.setChecked(s.circadian.enabled)
         self.circ_targets.set_value(s.circadian.targets)
@@ -612,6 +656,13 @@ class FeaturesPage(QScrollArea):
             w.blockSignals(False)
         self._pomodoro_label()
 
+    def _sync_focus(self):
+        on = self.cfg.settings.focus.active
+        if self.focus_on.isChecked() != on:
+            self.focus_on.blockSignals(True)
+            self.focus_on.setChecked(on)
+            self.focus_on.blockSignals(False)
+
     def _pomodoro_label(self):
         running = self.tab.win.automation.pomodoro.running()
         self.p_button.setText(tr("pomodoro.stop_short") if running else tr("pomodoro.start"))
@@ -622,6 +673,21 @@ class FeaturesPage(QScrollArea):
     def _save(self, *_):
         s = self.cfg.settings
         auto = self.tab.win.automation
+        f = s.focus
+        focus_changed = (f.targets, f.scene_id) != (self.focus_targets.value(), self.focus_scene.currentData() or "")
+        f.targets = self.focus_targets.value()
+        f.scene_id = self.focus_scene.currentData() or ""
+        f.schedule = self.focus_schedule.isChecked()
+        f.start = self.focus_start.time().toString("HH:mm")
+        f.end = self.focus_end.time().toString("HH:mm")
+        f.days = [i for i, b in enumerate(self.focus_days) if b.isChecked()]
+        for w in (self.focus_start, self.focus_end, *self.focus_days):
+            w.setEnabled(f.schedule)
+        if self.focus_on.isChecked() != f.active:
+            auto.set_focus(self.focus_on.isChecked())
+        elif f.active and focus_changed:  # outra cena/lâmpadas: reaplica o foco
+            auto.set_focus(False)
+            auto.set_focus(True)
         s.discord_mode = self.discord.isChecked()
         s.circadian.targets = self.circ_targets.value()
         s.circadian.brightness = self.circ_bright.isChecked()

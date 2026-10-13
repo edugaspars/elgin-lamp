@@ -38,6 +38,7 @@ def env(qapp, monkeypatch):
     store = Store()
     store.config.lamps = [Lamp("Escritório", "demo-1", "192.0.2.10", "0" * 16, id="a"),
                           Lamp("Sala", "demo-2", "192.0.2.11", "0" * 16, id="b")]
+    store.config.settings.focus.schedule = False  # o horário de trabalho não interfere nos testes
     svc = LampService(store, demo=True)
     auto = automation.Automation(store, svc, demo=True, watch=False)
     assert wait(qapp, lambda: all(svc.state(i).online for i in ("a", "b")))
@@ -233,7 +234,7 @@ def test_music_layer_and_restore(env):
 def test_pomodoro_cycle(env):
     qapp, store, svc, auto = env
     calls = []
-    auto.blink = lambda ids, c1, c2, times: calls.append(tuple(c1))
+    auto.blink = lambda ids, c1, c2, times, bypass=False: calls.append(tuple(c1))
     p = auto.pomodoro
     p.start()
     assert p.phase == "focus" and 24 * 60 < p.remaining() <= 25 * 60
@@ -376,3 +377,75 @@ def test_upgrade_movie_example_to_screen_color(qapp):
     assert old.action == "screen" and mine.action == "scene"
     assert cfg.settings.rules_version == RULES_VERSION
     assert not upgrade_rules(cfg)  # só uma vez
+
+
+def test_focus_mode_locks_automations_but_not_pomodoro_or_hands(env):
+    qapp, store, svc, auto = env
+    from lampdesk.storage import Scene
+    store.config.scenes.append(Scene("Foco", "white", 100, 100))
+    store.config.settings.focus.targets = ["a"]
+    auto.set_focus(True)
+    assert wait(qapp, lambda: svc.state("a").brightness == 100 and svc.state("a").temperature == 100)
+    assert svc.state("b").brightness == 40  # só as lâmpadas do foco
+
+    add_rule(store, auto, trigger="away", delay_min=0, action="off")
+    auto.locked = True
+    auto.evaluate_states()
+    assert wait(qapp, lambda: not svc.state("b").is_on)  # fora do foco: automação normal
+    wait(qapp, lambda: False, 0.2)
+    assert svc.state("a").is_on                          # no foco: não apaga
+    auto.locked = False
+    auto.evaluate_states()
+
+    auto.blink(["a"], [40, 110, 255], [0, 0, 0], 1)     # Discord / lembrete: não pisca
+    wait(qapp, lambda: not auto.stack.keys() or auto.stack.keys() == ["focus"], 1)
+    assert svc.state("a").mode == "white"
+    seen = []
+    svc.stateChanged.connect(lambda lid, st: seen.append((lid, st.mode)))
+    auto.blink(["a"], [255, 60, 40], [0, 0, 0], 1, bypass=True)  # pomodoro: pisca
+    assert wait(qapp, lambda: ("a", "colour") in seen)
+    assert wait(qapp, lambda: auto.stack.keys() == ["focus"] and svc.state("a").mode == "white"
+                and svc.state("a").brightness == 100)  # volta para a luz do foco
+
+    svc.set_color(["a"], (255, 0, 0))                    # à mão: pode
+    with svc.automated():
+        svc.set_color(["a"], (0, 255, 0))                # automação: não pode
+    bulb = svc._bulbs["a"]
+    assert wait(qapp, lambda: not bulb.pending() and bulb.bulb.state.color == (255, 0, 0))
+    wait(qapp, lambda: False, 0.3)
+    assert bulb.bulb.state.color == (255, 0, 0)
+
+    auto.set_focus(False)
+    assert not svc.locked
+    with svc.automated():
+        svc.set_power(["a"], False)
+    assert wait(qapp, lambda: not svc.state("a").is_on)  # destravou
+
+
+def test_focus_restores_previous_light(env):
+    qapp, store, svc, auto = env
+    store.config.settings.focus.targets = ["a"]
+    auto.set_focus(True)
+    assert wait(qapp, lambda: svc.state("a").brightness == 100)
+    auto.set_focus(False)
+    assert wait(qapp, lambda: svc.state("a").brightness == 40 and svc.state("a").temperature == 20)
+
+
+def test_focus_work_hours(env):
+    qapp, store, svc, auto = env
+    f = store.config.settings.focus
+    f.schedule = True
+    monday = dt.datetime(2026, 10, 12, 7, 59).astimezone()
+    auto.focus_schedule(monday)
+    assert not f.active
+    auto.focus_schedule(monday.replace(hour=8, minute=0))
+    assert f.active                                       # 8h: liga
+    auto.set_focus(False)                                 # desligou à mão no meio do dia
+    auto.focus_schedule(monday.replace(hour=12))
+    assert not f.active                                   # respeita
+    auto.set_focus(True)
+    auto.focus_schedule(monday.replace(hour=17, minute=50))
+    assert not f.active                                   # 17h50: desliga
+    saturday = dt.datetime(2026, 10, 17, 10, 0).astimezone()
+    auto.focus_schedule(saturday)
+    assert not f.active                                   # fim de semana: não liga

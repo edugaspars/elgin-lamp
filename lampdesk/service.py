@@ -33,6 +33,8 @@ class LampService(QObject):
         self._states: Dict[str, LampState] = {}
         self._timers: Dict[str, tuple] = {}  # chave -> (deadline, [ids])
         self._auto = 0  # > 0 enquanto as automações mandam comandos
+        self._bypass = 0
+        self.locked: set = set()  # modo foco: automações não mexem nessas lâmpadas
 
         self._bulbState.connect(self._on_bulb_state, Qt.ConnectionType.QueuedConnection)
         self._bulbVersion.connect(self.versionDetected, Qt.ConnectionType.QueuedConnection)
@@ -115,13 +117,19 @@ class LampService(QObject):
         return False
 
     @contextlib.contextmanager
-    def automated(self):
-        """Comandos dentro deste bloco vêm das automações (não contam como mudança manual)."""
+    def automated(self, bypass_lock: bool = False):
+        """Comandos dentro deste bloco vêm das automações (não contam como mudança manual).
+
+        Lâmpadas em `locked` (modo foco) ignoram esses comandos, a não ser com `bypass_lock`
+        (o próprio modo foco e os avisos do pomodoro).
+        """
         self._auto += 1
+        self._bypass += 1 if bypass_lock else 0
         try:
             yield
         finally:
             self._auto -= 1
+            self._bypass -= 1 if bypass_lock else 0
 
     # ------------------------------------------------------------- comandos ---
     def refresh(self, ids: Optional[Iterable[str]] = None) -> None:
@@ -166,6 +174,8 @@ class LampService(QObject):
 
     def _apply(self, ids, kind, value, optimistic) -> None:
         ids = list(ids)
+        if self._auto and not self._bypass and self.locked and not (kind == "countdown" and not value):
+            ids = [i for i in ids if i not in self.locked]  # cancelar o timer (0) sempre passa
         if not self._auto and kind != "countdown":
             self.userCommand.emit(ids, kind)
         for lid in ids:
