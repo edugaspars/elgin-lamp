@@ -35,7 +35,7 @@ STRINGS = {
         "status.offline": "Sem conexão",
         "status.connecting": "Conectando…",
         "empty.title": "Nenhuma lâmpada ainda",
-        "empty.body": "Adicione sua lâmpada Wi-Fi compatível com Smart Life/Tuya (Elgin, Positivo e outras) "
+        "empty.body": "Adicione sua lâmpada Wi-Fi compatível com Smart Life/Tuya (veja as marcas no README) "
                       "com o IP, o Device ID e o Local Key. "
                       "Tudo fica salvo criptografado só neste PC.",
         "empty.add": "Adicionar lâmpada",
@@ -83,7 +83,7 @@ STRINGS = {
         "lamp.help": "Sem o Local Key? Use \"Não tenho o Local Key\" (login com QR Code no Smart Life) "
                      "ou veja o passo a passo no README.",
         "lamp.missing": "Preencha IP, Device ID e Local Key.",
-        "lamp.bad_ip": "IP inválido. Use o formato 192.168.0.10.",
+        "lamp.bad_ip": "IP inválido. Use o formato 192.0.2.10.",
         "lamp.bad_key": "O Local Key costuma ter 16 caracteres. Confira se copiou certo.",
         "test.running": "Testando…",
         "test.ok": "Conectou! Protocolo {v}.",
@@ -429,7 +429,7 @@ STRINGS = {
         "status.offline": "Offline",
         "status.connecting": "Connecting…",
         "empty.title": "No lamps yet",
-        "empty.body": "Add your Smart Life/Tuya Wi-Fi lamp (Elgin, Positivo and others) "
+        "empty.body": "Add your Smart Life/Tuya Wi-Fi lamp (see the brands in the README) "
                       "with its IP, Device ID and Local Key. "
                       "Everything is stored encrypted on this PC only.",
         "empty.add": "Add lamp",
@@ -478,7 +478,7 @@ STRINGS = {
         "lamp.help": "No Local Key? Use \"I don't have the Local Key\" (QR code sign-in with Smart Life) "
                      "or follow the step-by-step guide in the README.",
         "lamp.missing": "Fill in IP, Device ID and Local Key.",
-        "lamp.bad_ip": "Invalid IP. Use the format 192.168.0.10.",
+        "lamp.bad_ip": "Invalid IP. Use the format 192.0.2.10.",
         "lamp.bad_key": "The Local Key is usually 16 characters long. Check that you copied it correctly.",
         "test.running": "Testing…",
         "test.ok": "Connected! Protocol {v}.",

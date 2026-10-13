@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 from . import APP_ID, APP_NAME
-from .paths import LEGACY_APP_ID, LEGACY_XDG_NAME
 
 _RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
@@ -23,25 +22,6 @@ def _command() -> str:
 def _desktop_file(name: str = "lampdesk") -> Path:
     xdg = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
     return Path(xdg) / "autostart" / f"{name}.desktop"
-
-
-def migrate_legacy() -> None:
-    """Troca a entrada de inicialização do nome anterior do app pela nova (apontando para este app)."""
-    if sys.platform == "win32":
-        import winreg
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY, 0,
-                                winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE) as key:
-                winreg.QueryValueEx(key, LEGACY_APP_ID)
-                winreg.DeleteValue(key, LEGACY_APP_ID)
-        except OSError:
-            return  # não havia entrada antiga
-        set_enabled(True)
-        return
-    old = _desktop_file(LEGACY_XDG_NAME)
-    if old.exists():
-        old.unlink()
-        set_enabled(True)
 
 
 def is_enabled() -> bool:

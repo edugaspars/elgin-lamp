@@ -11,7 +11,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
-from . import APP_ID, APP_NAME, __version__, autostart, rules, scheduler
+from . import APP_ID, APP_NAME, __version__, rules, scheduler
 from .automation import RULES_VERSION, Automation, default_rules, upgrade_rules
 from .i18n import set_language, tr
 from .paths import data_dir, log_file
@@ -44,11 +44,6 @@ class LampDeskApp:
             self.store = Store()
             self.store.load()
         cfg = self.store.config
-        if not demo:
-            try:
-                autostart.migrate_legacy()
-            except OSError:
-                log.warning("Não foi possível migrar a inicialização automática", exc_info=True)
         set_language(cfg.settings.language)
         from .ui import theme
         theme.apply(cfg.settings.theme, not cfg.settings.reduce_transparency)

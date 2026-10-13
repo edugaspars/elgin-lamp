@@ -1,5 +1,5 @@
 """Comunicação local com as lâmpadas (protocolo Tuya/Smart Life, usado por
-lâmpadas de várias marcas, como Elgin e Positivo).
+lâmpadas de dezenas de marcas; a lista de exemplos está no README).
 
 Nada aqui depende de Qt: dá para usar como biblioteca/script também.
 """

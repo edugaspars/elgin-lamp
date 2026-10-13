@@ -159,7 +159,7 @@ class LampDialog(_Dialog):
         self.name = QLineEdit(lamp.name if lamp else (prefill.name if prefill and prefill.name else
                                                       tr("lamp.default_name", n=count + 1)))
         self.ip = QLineEdit(lamp.ip if lamp else (prefill.ip if prefill else ""))
-        self.ip.setPlaceholderText("192.168.0.10")
+        self.ip.setPlaceholderText("192.0.2.10")
         self.dev = QLineEdit(lamp.device_id if lamp else (prefill.device_id if prefill else ""))
         self.key = QLineEdit(lamp.local_key if lamp else (prefill.local_key if prefill else ""))
         self.key.setEchoMode(QLineEdit.EchoMode.Password)

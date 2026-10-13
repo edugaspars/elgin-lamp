@@ -87,7 +87,7 @@ def test_lamp_dialog_fills_key(fake_tuya, monkeypatch):
     S.SmartLifeDialog.TIMEOUT_S = 30
 
     dlg = S.LampDialog(None, demo=True)
-    dlg.ip.setText("192.168.0.10")
+    dlg.ip.setText("192.0.2.10")
     dlg.dev.setText("ebcaaaa3")
 
     def drive(sl):
@@ -104,4 +104,4 @@ def test_lamp_dialog_fills_key(fake_tuya, monkeypatch):
     monkeypatch.setattr(S.SmartLifeDialog, "exec", lambda self: drive(self))
     dlg.fetch_key()
     assert dlg.key.text() == FAKE_KEY
-    assert dlg.ip.text() == "192.168.0.10"
+    assert dlg.ip.text() == "192.0.2.10"

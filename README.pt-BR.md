@@ -4,7 +4,7 @@
 
 **Gerencie suas lâmpadas inteligentes Wi-Fi direto da bandeja do Windows: na hora, pela rede local e sem nuvem.**
 
-Funciona com lâmpadas do ecossistema Tuya/Smart Life, como **Elgin**, **Positivo** e dezenas de outras marcas.
+Funciona com lâmpadas Wi-Fi do ecossistema Tuya/Smart Life, de dezenas de marcas ([veja exemplos](#lâmpadas-compatíveis)).
 
 [English](README.md) · **Português**
 
@@ -28,7 +28,7 @@ O **LampDesk** coloca suas lâmpadas a **um clique**, ao lado do relógio do Win
 
 ## Para quem é
 
-- **Quem tem lâmpada Wi-Fi baseada na plataforma Tuya**: as que funcionam com os apps *Smart Life* e *Tuya Smart*. É a mesma tecnologia de dezenas de marcas vendidas no Brasil e no mundo, como Elgin e Positivo.
+- **Quem tem lâmpada Wi-Fi baseada na plataforma Tuya**: as que funcionam com os apps *Smart Life* e *Tuya Smart*. É a mesma tecnologia de dezenas de marcas vendidas no Brasil e no mundo ([lista de exemplos](#lâmpadas-compatíveis)).
 - **Quem trabalha ou joga no PC** e quer ajustar a luz sem pegar o celular.
 - **Quem se preocupa com privacidade** e prefere que o controle diário não dependa de servidores de terceiros.
 - **Curiosos e desenvolvedores** que querem um exemplo real de app de bandeja em Python com protocolo Tuya local.
@@ -43,7 +43,7 @@ O **LampDesk** coloca suas lâmpadas a **um clique**, ao lado do relógio do Win
 | 🎛️ **Controle completo** | Liga/desliga, brilho, temperatura do branco (quente ↔ frio) e cor (RGB). |
 | 💡 **Várias lâmpadas e grupos** | Controle cada lâmpada, um grupo (ex.: Escritório) ou todas de uma vez. |
 | 🫧 **Visual de vidro** | Temas escuro e claro, com um painel de vidro fosco que desfoca o que está atrás e brilha na cor da lâmpada. Fundo Mica no Windows 11 e opção *Reduzir transparência*. |
-| 🎬 **Cenas** | Leitura, Relaxar, Foco, Noite, **Ambilight** (segue a cor da tela), **Música** (segue a capa do álbum)… e as suas. |
+| 🎬 **Cenas** | Leitura, Relaxar, Foco, Noite, **Ambilight** (segue a cor da tela), **Música** (segue a capa do álbum)… e as suas. O painel mostra a cena ativa de cada lâmpada. |
 | ⏰ **Rotinas** | Por horário e dia da semana ou pelo **nascer/pôr do sol**, com deslocamento em minutos. |
 | 🌙 **Timer** | "Desligar em 30 minutos". |
 | 🤖 **Automações** | Editor "Quando / Se / Então": apagar ao bloquear o PC, modo jogo/filme em tela cheia com a cor da tela (ambilight), amanhecer ao ligar o PC, apagar aos poucos, apagar 2 min depois de desligar o PC, lembretes que piscam, atalhos de teclado globais. |
@@ -54,6 +54,25 @@ O **LampDesk** coloca suas lâmpadas a **um clique**, ao lado do relógio do Win
 | 🔑 **Configuração fácil** | Busca as lâmpadas na rede e obtém a chave com um **QR Code** no Smart Life. |
 | 🌎 **Português e inglês** | Detecta o idioma do sistema, e você pode trocar quando quiser. |
 | 🚀 **Inicia com o Windows** | Fica discreto na bandeja, pronto para usar. |
+
+## Lâmpadas compatíveis
+
+Funciona com **lâmpadas Wi-Fi** da plataforma Tuya, as que pareiam com o app **Smart Life** ou **Tuya Smart**. Muitas marcas usam essa plataforma, por exemplo:
+
+| No Brasil | No mundo |
+|---|---|
+| Positivo Casa Inteligente | Teckin |
+| Multilaser Liv | Gosund |
+| Ekaza | Lumary |
+| Elgin | Feit Electric |
+| | Treatlife |
+| | Moes |
+| | Nedis SmartLife |
+| | Globe Electric |
+| | Merkury / Geeni |
+| | Calex |
+
+> A lista é só de exemplos: as marcas mudam de fornecedor com o tempo. O teste que vale é **a lâmpada funcionar no app Smart Life**. Lâmpadas só Zigbee ou só Bluetooth não funcionam (o app conversa pela rede Wi-Fi).
 
 ## Como funciona
 
@@ -90,8 +109,6 @@ flowchart LR
 4. Se o Firewall perguntar, permita em **Redes privadas**. É isso que permite encontrar as lâmpadas na rede.
 
 O ícone 💡 aparece perto do relógio. Se estiver escondido, clique na setinha **^** e arraste-o para a barra.
-
-> **Vindo do Elgin Lamp?** Esse era o nome anterior do app. Na primeira execução, o LampDesk traz suas configurações automaticamente (lâmpadas, cenas e rotinas) e atualiza o *Iniciar com o sistema*. Pode apagar o `ElginLamp.exe` antigo.
 
 ### Linux
 
@@ -134,7 +151,7 @@ No Linux com **GNOME**, o ícone da bandeja precisa da extensão *AppIndicator a
 
 ### 1. A lâmpada precisa estar no app Smart Life
 
-O login por QR Code funciona com contas do **Smart Life** ou do **Tuya Smart**. Se a sua lâmpada está no **app da própria marca** (Elgin Smart, por exemplo), mova-a (leva uns 10 minutos):
+O login por QR Code funciona com contas do **Smart Life** ou do **Tuya Smart**. Se a sua lâmpada está no **app da própria marca** (um app com o nome do fabricante), mova-a (leva uns 10 minutos):
 
 1. No app da marca, abra a lâmpada e escolha **Remover dispositivo**.
 2. Ligue e desligue a lâmpada no interruptor 3 vezes, até ela **piscar rápido**.
@@ -192,13 +209,13 @@ Em **Configurações › Automações** cada regra tem três partes:
 
 - **Quando:** saí do PC (bloqueado ou tela apagada), tela cheia / programa aberto, horário, nascer/pôr do sol, ao ligar o PC, ao desligar o PC, notificação de um app ou tecla de atalho.
 - **Se:** dias da semana, só entre dois horários, só quando estiver escuro, só com o modo Discord ligado.
-- **Então:** ligar, desligar, cena, cor, brilho, piscar, acender/apagar aos poucos, desligar depois (timer da própria lâmpada), pomodoro, ligar/desligar modos.
+- **Então:** ligar, desligar, cena, cor, brilho, piscar, acender/apagar aos poucos, desligar depois (timer da própria lâmpada), cor da tela (ambilight), pomodoro, ligar/desligar modo foco e outros modos.
 
 No primeiro uso o app pergunta o **ambiente deste PC** (ex.: o grupo Escritório): automações e recursos valem só para essas lâmpadas, não para a casa toda (dá para mudar no topo da aba). A aba já vem com exemplos desligados: é só marcar. Regras que duram (PC bloqueado, tela cheia) voltam a luz ao que era quando terminam, e **mexer na luz à mão sempre vence**: a automação não desfaz o que você mudou.
 
 - **Apagar depois de desligar o PC:** o app pede à lâmpada para se desligar sozinha em N minutos (o mesmo timer do app Smart Life), então funciona mesmo com o PC desligado. Se o PC ligar de novo antes, o pedido é cancelado.
 - **Discord e outros apps:** o app lê as notificações que o Windows mostra no canto da tela. Canais silenciados no Discord não geram notificação e não piscam. A aba **Diagnóstico** mostra a última notificação lida e permite simular uma.
-- **Partes só do Windows:** bloqueio de tela, tela cheia, notificações, atalhos globais, capa do álbum e desligamento. No Linux as regras de horário, ciclo do dia, cor da tela e pomodoro funcionam; as demais ficam inativas.
+- **Partes só do Windows:** bloqueio de tela, tela cheia, notificações, atalhos globais, capa do álbum e desligamento. No Linux as regras de horário, ciclo do dia, cena Ambilight e pomodoro funcionam; as demais ficam inativas.
 
 ### Linha de comando
 
@@ -233,6 +250,7 @@ python -m lampdesk.cli off
 | Erro de chave / não obedece | O Local Key muda quando a lâmpada é pareada de novo: busque-o outra vez. |
 | Rotina não rodou | As rotinas rodam com o app aberto: ative **Iniciar com o sistema**. Depois de uma suspensão, a rotina ainda roda em até 10 minutos. |
 | Automação não disparou | Veja **Configurações › Automações › Diagnóstico**: mostra se o PC está bloqueado, o programa em primeiro plano, a última notificação lida e os atalhos que outro programa já usa. Para notificações, o Discord precisa estar com as notificações do Windows ligadas. |
+| A luz continua mudando sozinha | O rodapé do painel mostra o que está controlando a luz (Ambilight, Música ou o nome da regra): clique no ✕ para parar. O modo foco (🎯) trava todas as mudanças automáticas. |
 | Funciona às vezes | Feche outras integrações locais (Home Assistant/LocalTuya), porque a lâmpada aceita poucas conexões ao mesmo tempo. |
 
 Os logs ficam em `%APPDATA%\LampDesk\lampdesk.log`. Para log detalhado, use `--verbose`.
@@ -263,7 +281,7 @@ lampdesk/
   i18n.py         português / inglês
   cli.py          linha de comando
   version.py      versão calculada pelas tags do Git
-  ui/             painel, tema de vidro, componentes desenhados à mão, configurações, bandeja
+  ui/             painel, tema de vidro, componentes desenhados à mão, configurações, aba Automações, bandeja
 scripts/          build.py (PyInstaller), version.py, make_icon.py, check_secrets.py
 tests/            pytest, incluindo fake_tuya.py (lâmpada Tuya 3.3 simulada)
 ```
@@ -293,7 +311,7 @@ Construído com [tinytuya](https://github.com/jasonacox/tinytuya), [PySide6 (Qt)
 
 ## Aviso
 
-Projeto independente e não oficial. **Não é afiliado, endossado ou suportado pela Tuya Inc. nem por nenhum fabricante de lâmpadas.** "Tuya", "Smart Life", "Elgin", "Positivo" e outros nomes de marcas são marcas de seus respectivos donos e são citadas apenas para identificar a compatibilidade. Use por sua conta e risco.
+Projeto independente e não oficial. **Não é afiliado, endossado ou suportado pela Tuya Inc. nem por nenhum fabricante de lâmpadas.** "Tuya", "Smart Life" e os nomes de marcas citados são marcas de seus respectivos donos e são citadas apenas para identificar a compatibilidade. Use por sua conta e risco.
 
 ## Licença
 

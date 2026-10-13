@@ -4,7 +4,7 @@
 
 **Manage your Wi-Fi smart bulbs from the Windows system tray: instantly, over your local network, no cloud.**
 
-Works with bulbs from the Tuya/Smart Life ecosystem, such as **Elgin**, **Positivo** and dozens of other brands.
+Works with Wi-Fi bulbs from the Tuya/Smart Life ecosystem, from dozens of brands ([see examples](#compatible-bulbs)).
 
 **English** · [Português](README.pt-BR.md)
 
@@ -28,7 +28,7 @@ Smart bulbs are great until you need them **while you're at your computer**. Gra
 
 ## Who it's for
 
-- **Anyone with a Tuya-based Wi-Fi bulb**: the ones that work with the *Smart Life* and *Tuya Smart* apps. The same technology powers dozens of brands worldwide, such as Elgin and Positivo in Brazil.
+- **Anyone with a Tuya-based Wi-Fi bulb**: the ones that work with the *Smart Life* and *Tuya Smart* apps. The same technology powers dozens of brands worldwide ([list of examples](#compatible-bulbs)).
 - **People who work or game on a PC** and want to adjust the lights without reaching for the phone.
 - **Privacy-minded users** who'd rather not depend on third-party servers for everyday control.
 - **Tinkerers and developers** looking for a real-world Python tray app built on the local Tuya protocol.
@@ -43,7 +43,7 @@ Smart bulbs are great until you need them **while you're at your computer**. Gra
 | 🎛️ **Full control** | Power, brightness, white temperature (warm ↔ cool) and color (RGB). |
 | 💡 **Multiple bulbs and groups** | Control each bulb, a group (e.g. Office) or all of them at once. |
 | 🫧 **Glass look** | Dark and light themes with a frosted-glass panel that blurs what's behind it and glows in the color of the bulb. Mica background on Windows 11, plus a *Reduce transparency* option. |
-| 🎬 **Scenes** | Reading, Relax, Focus, Night, **Ambilight** (follows the screen color), **Music** (follows the album cover)… plus your own. |
+| 🎬 **Scenes** | Reading, Relax, Focus, Night, **Ambilight** (follows the screen color), **Music** (follows the album cover)… plus your own. The panel shows each bulb's active scene. |
 | ⏰ **Routines** | By time and weekday, or at **sunrise/sunset** with a minute offset. |
 | 🌙 **Sleep timer** | "Turn off in 30 minutes". |
 | 🤖 **Automations** | "When / If / Then" editor: turn off when the PC locks, game/movie mode in fullscreen with the screen color (ambilight), sunrise when the PC turns on, fade out, turn off 2 min after the PC shuts down, blinking reminders, global hotkeys. |
@@ -54,6 +54,25 @@ Smart bulbs are great until you need them **while you're at your computer**. Gra
 | 🔑 **Easy setup** | Finds the bulbs on your network and gets the key with a **QR code** scanned in Smart Life. |
 | 🌎 **English and Portuguese** | Follows your system language; switch anytime. |
 | 🚀 **Starts with Windows** | Sits quietly in the tray, ready to go. |
+
+## Compatible bulbs
+
+Works with **Wi-Fi bulbs** on the Tuya platform: the ones that pair with the **Smart Life** or **Tuya Smart** app. Many brands use this platform, for example:
+
+| In Brazil | Worldwide |
+|---|---|
+| Positivo Casa Inteligente | Teckin |
+| Multilaser Liv | Gosund |
+| Ekaza | Lumary |
+| Elgin | Feit Electric |
+| | Treatlife |
+| | Moes |
+| | Nedis SmartLife |
+| | Globe Electric |
+| | Merkury / Geeni |
+| | Calex |
+
+> The list is only examples: brands switch suppliers over time. The test that matters is **whether the bulb works in the Smart Life app**. Zigbee-only or Bluetooth-only bulbs don't work (the app talks over Wi-Fi).
 
 ## How it works
 
@@ -90,8 +109,6 @@ flowchart LR
 4. If the firewall asks, allow it on **Private networks**. This is what lets the app find bulbs on your network.
 
 The 💡 icon appears next to the clock. If it's hidden, click the **^** arrow and drag it onto the taskbar.
-
-> **Coming from Elgin Lamp?** That was this app's previous name. On first launch, LampDesk moves your settings over automatically (bulbs, scenes and routines) and updates *Start with system*. You can delete the old `ElginLamp.exe`.
 
 ### Linux
 
@@ -134,7 +151,7 @@ On Linux with **GNOME**, the tray icon requires the *AppIndicator and KStatusNot
 
 ### 1. The bulb must be in the Smart Life app
 
-QR-code sign-in works with **Smart Life** or **Tuya Smart** accounts. If your bulb is in its **brand's own app** (Elgin Smart, for example), move it over (takes about 10 minutes):
+QR-code sign-in works with **Smart Life** or **Tuya Smart** accounts. If your bulb is in its **brand's own app** (an app named after the manufacturer), move it over (takes about 10 minutes):
 
 1. In the brand's app, open the bulb and choose **Remove device**.
 2. Flip the wall switch off and on 3 times until the bulb **blinks quickly**.
@@ -192,13 +209,13 @@ In **Settings › Automations** each rule has three parts:
 
 - **When:** I left the PC (locked or screen off), fullscreen / program open, time, sunrise/sunset, when the PC turns on, when the PC shuts down, an app notification or a hotkey.
 - **If:** weekdays, only between two times, only when it's dark, only with Discord mode on.
-- **Then:** turn on, turn off, scene, color, brightness, blink, fade in/out, turn off later (the bulb's own timer), pomodoro, toggle modes.
+- **Then:** turn on, turn off, scene, color, brightness, blink, fade in/out, turn off later (the bulb's own timer), screen color (ambilight), pomodoro, toggle focus mode and other modes.
 
 On first use the app asks for **this PC's room** (e.g. the Office group): automations and features only change those lamps, not the whole house (you can change it at the top of the tab). The tab comes with disabled examples: just check one. Lasting rules (PC locked, fullscreen) put the light back when they end, and **changing the light by hand always wins**: automations don't undo what you changed.
 
 - **Turn off after the PC shuts down:** the app asks the bulb to switch itself off in N minutes (the same timer as in the Smart Life app), so it works with the PC off. If the PC turns back on first, the request is cancelled.
 - **Discord and other apps:** the app reads the notifications Windows shows in the corner of the screen. Muted Discord channels create no notification and don't blink. The **Diagnostics** tab shows the last notification read and lets you simulate one.
-- **Windows-only parts:** screen lock, fullscreen, notifications, global hotkeys, album cover and shutdown. On Linux, time rules, daylight cycle, screen color and pomodoro work; the rest stays inactive.
+- **Windows-only parts:** screen lock, fullscreen, notifications, global hotkeys, album cover and shutdown. On Linux, time rules, daylight cycle, the Ambilight scene and pomodoro work; the rest stays inactive.
 
 ### Command line
 
@@ -233,6 +250,7 @@ python -m lampdesk.cli off
 | Key error / bulb ignores commands | The Local Key changes whenever the bulb is re-paired: fetch it again. |
 | A routine didn't run | Routines run while the app is open: enable **Start with system**. After sleep, a routine still runs up to 10 minutes late. |
 | An automation didn't fire | Check **Settings › Automations › Diagnostics**: it shows whether the PC is locked, the foreground program, the last notification read and hotkeys already taken by another program. For notifications, Discord must have Windows notifications enabled. |
+| The light keeps changing by itself | The panel footer shows what is controlling the light (Ambilight, Music or the rule's name): click ✕ to stop it. Focus mode (🎯) locks every automatic change. |
 | Works intermittently | Close other local integrations (Home Assistant/LocalTuya), since bulbs accept only a few simultaneous connections. |
 
 Logs are in `%APPDATA%\LampDesk\lampdesk.log`. Use `--verbose` for detailed logging.
@@ -263,7 +281,7 @@ lampdesk/
   i18n.py         English / Portuguese
   cli.py          command line
   version.py      version from Git tags
-  ui/             panel, glass theme, hand-painted widgets, settings, tray
+  ui/             panel, glass theme, hand-painted widgets, settings, Automations tab, tray
 scripts/          build.py (PyInstaller), version.py, make_icon.py, check_secrets.py
 tests/            pytest, including fake_tuya.py (simulated Tuya 3.3 bulb)
 ```
@@ -293,7 +311,7 @@ Built with [tinytuya](https://github.com/jasonacox/tinytuya), [PySide6 (Qt)](htt
 
 ## Disclaimer
 
-This is an independent, unofficial project. **It is not affiliated with, endorsed by, or supported by Tuya Inc. or any bulb manufacturer.** "Tuya", "Smart Life", "Elgin", "Positivo" and other brand names are trademarks of their respective owners and are mentioned only to describe compatibility. Use at your own risk.
+This is an independent, unofficial project. **It is not affiliated with, endorsed by, or supported by Tuya Inc. or any bulb manufacturer.** "Tuya", "Smart Life" and the brand names mentioned are trademarks of their respective owners and are mentioned only to describe compatibility. Use at your own risk.
 
 ## License
 
