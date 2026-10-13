@@ -34,7 +34,7 @@ class Lamp:
 @dataclass
 class Scene:
     name: str
-    mode: str = "white"           # "white" | "colour"
+    mode: str = "white"           # "white" | "colour" | "screen" (reativa: segue a tela, ver automation)
     brightness: int = 100         # 1..100
     temperature: int = 50         # 0 (quente) .. 100 (frio)
     color: List[int] = field(default_factory=lambda: [255, 160, 60])
@@ -265,7 +265,7 @@ def default_scenes(tr) -> List[Scene]:
         Scene(tr("scene.relax"), "white", 45, 0),
         Scene(tr("scene.focus"), "white", 100, 100),
         Scene(tr("scene.night"), "colour", 10, 0, [255, 120, 30]),
-        Scene(tr("scene.movie"), "colour", 25, 0, [90, 60, 255]),
+        Scene(tr("scene.ambilight"), "screen", 100, 50),
     ]
 
 

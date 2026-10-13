@@ -744,9 +744,11 @@ class SceneDialog(_Dialog):
         mode_row = QHBoxLayout()
         self.white = QRadioButton(tr("scene.mode_white"))
         self.colour = QRadioButton(tr("scene.mode_colour"))
-        (self.colour if self.scene.mode == "colour" else self.white).setChecked(True)
+        self.screen = QRadioButton(tr("scene.mode_screen"))
+        {"colour": self.colour, "screen": self.screen}.get(self.scene.mode, self.white).setChecked(True)
         mode_row.addWidget(self.white)
         mode_row.addWidget(self.colour)
+        mode_row.addWidget(self.screen)
         mode_row.addStretch(1)
         self.bright = QSlider(Qt.Orientation.Horizontal)
         self.bright.setRange(1, 100)
@@ -761,15 +763,22 @@ class SceneDialog(_Dialog):
         form.addRow(tr("scene.temperature"), self.temp)
         form.addRow(tr("color"), self.color_btn)
         self.body.addLayout(form)
-        self.white.toggled.connect(self._sync)
+        self.screen_note = muted(tr("scene.screen_note"))
+        self.body.addWidget(self.screen_note)
+        self.form = form
+        for rb in (self.white, self.colour, self.screen):
+            rb.toggled.connect(self._sync)
         self._sync()
         self.add_buttons()
 
     def _sync(self):
-        white = self.white.isChecked()
+        white, screen = self.white.isChecked(), self.screen.isChecked()
         self.temp.setEnabled(white)
-        self.color_btn.setEnabled(not white)
+        self.color_btn.setEnabled(self.colour.isChecked())
         self.color_btn.setIcon(swatch(self.color, 16))
+        for w in (self.bright, self.temp, self.color_btn):  # a tela decide cor e brilho
+            self.form.setRowVisible(w, not screen)
+        self.screen_note.setVisible(screen)
 
     def pick(self):
         c = QColorDialog.getColor(self.color, self, tr("pick_color"))
@@ -780,7 +789,7 @@ class SceneDialog(_Dialog):
     def value(self) -> Scene:
         s = self.scene
         s.name = self.name.text().strip() or s.name
-        s.mode = "white" if self.white.isChecked() else "colour"
+        s.mode = "screen" if self.screen.isChecked() else ("white" if self.white.isChecked() else "colour")
         s.brightness, s.temperature = self.bright.value(), self.temp.value()
         s.color = [self.color.red(), self.color.green(), self.color.blue()]
         return s
@@ -807,6 +816,11 @@ class ScenesTab(QWidget):
         from ..lamp import white_rgb
         self.list.clear()
         for s in self.win.store.config.scenes:
+            if s.mode == "screen":
+                it = QListWidgetItem(swatch(QColor(120, 150, 255), 14), f"{s.name}\n{tr('scene.mode_screen')}")
+                it.setData(Qt.ItemDataRole.UserRole, s.id)
+                self.list.addItem(it)
+                continue
             rgb = s.color if s.mode == "colour" else white_rgb(s.temperature)
             detail = tr("scene.mode_colour") if s.mode == "colour" else tr("scene.mode_white")
             it = QListWidgetItem(swatch(QColor(*rgb), 14), f"{s.name}\n{detail} · {s.brightness}%")

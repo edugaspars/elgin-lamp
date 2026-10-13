@@ -43,7 +43,7 @@ Smart bulbs are great until you need them **while you're at your computer**. Gra
 | 🎛️ **Full control** | Power, brightness, white temperature (warm ↔ cool) and color (RGB). |
 | 💡 **Multiple bulbs and groups** | Control each bulb, a group (e.g. Office) or all of them at once. |
 | 🫧 **Glass look** | Dark and light themes with a frosted-glass panel that blurs what's behind it and glows in the color of the bulb. Mica background on Windows 11, plus a *Reduce transparency* option. |
-| 🎬 **Scenes** | Reading, Relax, Focus, Night, Movie… plus your own. |
+| 🎬 **Scenes** | Reading, Relax, Focus, Night, **Ambilight** (follows the screen color)… plus your own. |
 | ⏰ **Routines** | By time and weekday, or at **sunrise/sunset** with a minute offset. |
 | 🌙 **Sleep timer** | "Turn off in 30 minutes". |
 | 🤖 **Automations** | "When / If / Then" editor: turn off when the PC locks, game/movie mode in fullscreen with the screen color (ambilight), sunrise when the PC turns on, fade out, turn off 2 min after the PC shuts down, blinking reminders, global hotkeys. |

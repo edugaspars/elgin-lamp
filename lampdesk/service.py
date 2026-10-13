@@ -18,6 +18,7 @@ class LampService(QObject):
     stateChanged = Signal(str, object)      # lamp_id, LampState
     versionDetected = Signal(str, str)      # lamp_id, versão
     timersChanged = Signal()
+    reactiveScene = Signal(list)            # cena "Ambilight" (segue a tela): quem pinta são as automações
     userCommand = Signal(list, str)         # ids e tipo de comando mexidos à mão (painel, bandeja, atalhos)
 
     # usados pelas threads das lâmpadas; o Qt entrega na thread da interface
@@ -155,6 +156,15 @@ class LampService(QObject):
         self._apply(ids, "color", rgb, lambda s: replace(s, is_on=True, mode="colour", color=rgb))
 
     def apply_scene(self, ids, scene: Scene) -> None:
+        if scene.mode == "screen":  # cena reativa: não vai para a lâmpada, as automações acompanham a tela
+            ids = list(ids)
+            if self._auto and not self._bypass and self.locked:
+                ids = [i for i in ids if i not in self.locked]
+            if not self._auto:
+                self.userCommand.emit(ids, "scene")
+            self.reactiveScene.emit(ids)
+            return
+
         def optimistic(s):
             if scene.mode == "colour":
                 return replace(s, is_on=True, mode="colour", color=tuple(scene.color), brightness=scene.brightness)

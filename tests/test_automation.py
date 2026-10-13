@@ -367,9 +367,10 @@ def test_fullscreen_screen_color_rule(env, monkeypatch):
 def test_upgrade_movie_example_to_screen_color(qapp):
     from lampdesk.automation import RULES_VERSION, upgrade_rules
     from lampdesk.i18n import tr
-    from lampdesk.storage import Config, Rule, default_scenes
+    from lampdesk.storage import Config, Rule, Scene, default_scenes
     cfg = Config(scenes=default_scenes(tr))
-    movie = next(s for s in cfg.scenes if s.name == tr("scene.movie"))
+    movie = Scene(tr("scene.movie"), "colour", 25, 0, [90, 60, 255])  # cena padrão das versões anteriores
+    cfg.scenes.append(movie)
     old = Rule(tr("rule.ex.fullscreen"), trigger="fullscreen", action="scene", scene_id=movie.id)
     mine = Rule("Meu modo", trigger="fullscreen", action="scene", scene_id=movie.id)  # do usuário: não mexe
     cfg.rules = [old, mine]
@@ -449,3 +450,52 @@ def test_focus_work_hours(env):
     saturday = dt.datetime(2026, 10, 17, 10, 0).astimezone()
     auto.focus_schedule(saturday)
     assert not f.active                                   # fim de semana: não liga
+
+
+def test_ambilight_scene_follows_screen_until_manual_change(env, monkeypatch):
+    qapp, store, svc, auto = env
+    from lampdesk import automation
+    from lampdesk.storage import Scene
+    frame = {"img": _image((20, 40, 230))}
+    monkeypatch.setattr(automation, "grab_primary", lambda: frame["img"])
+    ambi = Scene("Ambilight", "screen", 100, 50)
+    svc.apply_scene(["a"], ambi)                       # escolhida no painel
+    assert wait(qapp, lambda: svc.state("a").mode == "colour" and svc.state("a").brightness == 100)
+    frame["img"] = _image((5, 5, 5))
+    auto._ambi_tick()
+    auto._ambi_tick()
+    assert wait(qapp, lambda: svc.state("a").mode == "white" and svc.state("a").brightness == 1)
+    svc.apply_scene(["a"], Scene("Leitura", "white", 90, 55))  # outra cena: a tela para de mandar
+    assert automation.SCREEN_SCENE not in auto._screen_rules
+    frame["img"] = _image((230, 20, 20))
+    auto._ambi_tick()
+    auto._ambi_tick()
+    bulb = svc._bulbs["a"].bulb
+    assert wait(qapp, lambda: not svc._bulbs["a"].pending() and bulb.state.brightness == 90)
+    wait(qapp, lambda: False, 0.3)
+    assert bulb.state.mode == "white" and bulb.state.brightness == 90
+
+
+def test_ambilight_scene_never_reaches_the_bulb(qapp):
+    from lampdesk.lamp import LampError, TuyaBulb
+    from lampdesk.storage import Lamp, Scene
+
+    class Dev:
+        dpset = {"switch": "20", "mode": "21", "brightness": "22", "colourtemp": "23", "colour": "24",
+                 "value_min": 10, "value_max": 1000, "value_hexformat": "hsv16", "timer": "26"}
+    bulb = TuyaBulb(Lamp("x", "id", "192.0.2.1", "k" * 16))
+    bulb._dev = Dev()
+    with pytest.raises(LampError):
+        bulb.values("scene", Scene("Ambilight", "screen"), None)
+
+
+def test_upgrade_movie_scene_to_ambilight(qapp):
+    from lampdesk.automation import upgrade_rules
+    from lampdesk.i18n import tr
+    from lampdesk.storage import Config, Scene
+    cfg = Config(scenes=[Scene(tr("scene.movie"), "colour", 25, 0, [90, 60, 255]),
+                         Scene(tr("scene.movie"), "colour", 60, 0, [255, 0, 0])])  # a segunda foi mudada
+    cfg.settings.rules_version = 2
+    assert upgrade_rules(cfg)
+    assert cfg.scenes[0].mode == "screen" and cfg.scenes[0].name == tr("scene.ambilight")
+    assert cfg.scenes[1].mode == "colour"

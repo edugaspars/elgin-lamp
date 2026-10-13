@@ -23,7 +23,8 @@ from .storage import Rule, Scene
 
 log = logging.getLogger(__name__)
 
-PRIO_ALERT, PRIO_FOCUS, PRIO_AWAY, PRIO_MODE, PRIO_MUSIC = 100, 90, 60, 40, 30
+PRIO_ALERT, PRIO_FOCUS, PRIO_AWAY, PRIO_MODE, PRIO_MUSIC, PRIO_SCENE = 100, 90, 60, 40, 30, 20
+SCREEN_SCENE = "scene:screen"  # camada da cena reativa Ambilight escolhida no painel
 
 BOOT_WINDOW_S = 15 * 60       # "ao ligar o PC": só se o PC ligou há pouco (não a cada abertura do app)
 FULLSCREEN_DEBOUNCE_S = 2     # alt-tab rápido não troca a luz
@@ -79,7 +80,7 @@ def default_rules(tr, cfg) -> List[Rule]:
     ]
 
 
-RULES_VERSION = 2
+RULES_VERSION = 3
 
 
 def upgrade_rules(cfg) -> bool:
@@ -94,6 +95,14 @@ def upgrade_rules(cfg) -> bool:
             sc = cfg.scene(r.scene_id)
             if r.trigger == "fullscreen" and r.name in names and r.action == "scene" and sc and sc.name in movie:
                 r.action = "screen"
+                changed = True
+    if cfg.settings.rules_version < 3:
+        # cena Cinema (roxo fixo) vira a cena reativa Ambilight, se o usuário não a mudou
+        from .i18n import tr
+        movie = {STRINGS[lang]["scene.movie"] for lang in STRINGS}
+        for sc in cfg.scenes:
+            if sc.name in movie and sc.mode == "colour" and list(sc.color) == [90, 60, 255] and sc.brightness == 25:
+                sc.name, sc.mode = tr("scene.ambilight"), "screen"
                 changed = True
     if cfg.settings.rules_version != RULES_VERSION:
         cfg.settings.rules_version = RULES_VERSION
@@ -452,12 +461,13 @@ class Automation(QObject):
         self._music_color = None
         self._cover_busy = False
         self.cover = CoverTracker()
-        self._screen_rules: Dict[str, List[str]] = {}  # camada de regra "cor da tela" -> lâmpadas
+        self._screen_rules: Dict[str, tuple] = {}  # camada que segue a tela -> (prioridade, [lâmpadas])
         self._mood = None             # último visual da tela aplicado
         self._mood_pending = (None, 0)  # troca de tipo (cor/branco/escuro) esperando confirmar
         self._focus_window = None     # dentro do horário de trabalho na última conferida
 
         service.userCommand.connect(self._on_user)
+        service.reactiveScene.connect(self._on_reactive_scene)
         self._hotkey.connect(self._on_hotkey, Qt.ConnectionType.QueuedConnection)
         self._cover.connect(self._on_cover, Qt.ConnectionType.QueuedConnection)
 
@@ -523,6 +533,12 @@ class Automation(QObject):
     # --------------------------------------------------------- mão do usuário ---
     def _on_user(self, ids, kind=""):
         self.stack.release(ids)
+        for key, (prio, lids) in list(self._screen_rules.items()):  # a cor da tela para de mandar nelas
+            rest = [lid for lid in lids if lid not in ids]
+            if key == SCREEN_SCENE and not rest:
+                self._stop_screen(key, restore=False)
+            else:
+                self._screen_rules[key] = (prio, rest)
         today = self._now().date()
         for f in self._fades:
             for lid in ids:
@@ -560,6 +576,10 @@ class Automation(QObject):
             for lid in ids:
                 f.begin.pop(lid, None)
         begin = {}
+        if target is not None and target.mode == "screen":  # cena reativa: não tem como "subir aos poucos"
+            with svc.automated():
+                svc.apply_scene(ids, target)
+            return
         with svc.automated():
             for lid in ids:
                 st = svc.state(lid)
@@ -695,11 +715,8 @@ class Automation(QObject):
         key = f"rule:{r.id}"
         self._active[r.id] = key
         log.info("Automação '%s' começou", r.name)
-        if r.action == "screen":
-            ids = self.ids(r.targets)
-            self._screen_rules[key] = ids
-            self.stack.push(key, prio, ids, self.screen_look(fresh=True))
-            self._ambi_timer.start()
+        if self._follows_screen(r):
+            self._start_screen(key, prio, self.ids(r.targets))
         elif r.action in R.LOOK_ACTIONS:
             self.stack.push(key, prio, self.ids(r.targets), self._look(r))
         else:
@@ -708,7 +725,8 @@ class Automation(QObject):
     def _exit(self, r: Rule) -> None:
         key = self._active.pop(r.id)
         log.info("Automação '%s' terminou", r.name)
-        if self._screen_rules.pop(key, None) is not None and not self._screen_rules:
+        self._screen_rules.pop(key, None)
+        if not self._screen_rules:
             self._ambi_timer.stop()
         if r.restore == "scene" and self.cfg.scene(r.restore_scene):
             ids = [lid for lid in self.ids(r.targets) if self.stack.controls(lid)]
@@ -837,6 +855,8 @@ class Automation(QObject):
     def focus_scene(self) -> Scene:
         f = self.cfg.settings.focus
         sc = self.cfg.scene(f.scene_id)
+        if sc is not None and sc.mode == "screen":
+            sc = None  # foco é luz parada
         if sc is None:
             from .i18n import STRINGS
             names = {STRINGS[lang]["scene.focus"] for lang in STRINGS}
@@ -1016,9 +1036,33 @@ class Automation(QObject):
             self._ambi_timer.stop()
             return
         look = self.screen_look()
-        for key, ids in self._screen_rules.items():
+        for key, (prio, ids) in self._screen_rules.items():
             if self.stack.active(key):
-                self.stack.push(key, PRIO_MODE, ids, look)
+                self.stack.push(key, prio, ids, look)
+
+    def _follows_screen(self, rule: Rule) -> bool:
+        if rule.action == "screen":
+            return True
+        sc = self.cfg.scene(rule.scene_id) if rule.action == "scene" else None
+        return bool(sc and sc.mode == "screen")
+
+    def _start_screen(self, key: str, prio: int, ids) -> None:
+        self._screen_rules[key] = (prio, list(ids))
+        self.stack.push(key, prio, ids, self.screen_look(fresh=True))
+        self._ambi_timer.start()
+
+    def _stop_screen(self, key: str, restore: bool = True) -> None:
+        self._screen_rules.pop(key, None)
+        self.stack.pop(key, restore=restore)
+        if not self._screen_rules:
+            self._ambi_timer.stop()
+
+    def _on_reactive_scene(self, ids) -> None:
+        """Escolheram a cena Ambilight: a luz segue a tela até outra cena ou uma mudança à mão."""
+        old = self._screen_rules.get(SCREEN_SCENE, (PRIO_SCENE, []))[1]
+        merged = list(dict.fromkeys([*old, *ids]))
+        if merged:
+            self._start_screen(SCREEN_SCENE, PRIO_SCENE, merged)
 
     # ------------------------------------------------------------ diagnóstico ---
     def diagnostics(self) -> Dict[str, str]:

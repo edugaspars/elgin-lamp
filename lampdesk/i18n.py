@@ -48,6 +48,10 @@ STRINGS = {
         "scene.focus": "Foco",
         "scene.night": "Noite",
         "scene.movie": "Cinema",
+        "scene.ambilight": "Ambilight",
+        "scene.mode_screen": "Tela (ambilight)",
+        "scene.screen_note": "A luz segue o monitor principal: colorido a 100%, branco a 25% e quase apagada (1%) "
+                             "em cenas escuras. Fica assim até você escolher outra cena ou mexer na luz.",
         # Configurações
         "btn.add": "Adicionar",
         "btn.edit": "Editar",
@@ -393,6 +397,10 @@ STRINGS = {
         "scene.focus": "Focus",
         "scene.night": "Night",
         "scene.movie": "Movie",
+        "scene.ambilight": "Ambilight",
+        "scene.mode_screen": "Screen (ambilight)",
+        "scene.screen_note": "The light follows the main monitor: colors at 100%, white at 25% and almost off (1%) "
+                             "in dark scenes. It stays this way until you pick another scene or change the light.",
         "btn.add": "Add",
         "btn.edit": "Edit",
         "btn.remove": "Remove",

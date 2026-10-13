@@ -184,6 +184,8 @@ class TuyaBulb:
             out = {ds["switch"]: True, ds["mode"]: "colour", ds["colour"]: self._colour_hex(value, current.brightness)}
         elif kind == "scene":
             scene: Scene = value
+            if scene.mode == "screen":
+                raise LampError("cena reativa (cor da tela) não vai direto para a lâmpada")
             if scene.mode == "colour" and ds["colour"]:
                 out = {ds["switch"]: True, ds["mode"]: "colour",
                        ds["colour"]: self._colour_hex(scene.color, scene.brightness)}
