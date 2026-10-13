@@ -38,7 +38,7 @@ def test_safe_defaults_outside_windows(monkeypatch):
     assert winsys.is_locked() is False
     assert winsys.idle_seconds() == 0.0
     assert winsys.foreground() == ("", False)
-    assert winsys.media_now() is None
+    assert winsys.media_now() == ("paused", "", None)
     assert not winsys.media_available()
     t = winsys.HotkeyThread({1: (2, ord("L"))}, lambda _h: None)
     t.start()

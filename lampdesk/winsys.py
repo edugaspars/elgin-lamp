@@ -276,35 +276,40 @@ def media_available() -> bool:
         return False
 
 
-def media_now() -> Optional[Tuple[str, Optional[bytes]]]:
-    """(título - artista, bytes da capa) do que está tocando agora, ou None se nada toca.
+def media_now(want_cover: Callable[[str], bool] = lambda _key: True):
+    """O que o controle de mídia do Windows mostra agora: (estado, "título - artista", bytes da capa).
 
-    Usa os controles de mídia do Windows (os mesmos do volume na barra de tarefas):
-    Spotify, navegador com YouTube, players… Bloqueante: chamar fora da thread da interface.
+    Estado: "playing", "paused" (pausado, parado ou nada aberto) ou "busy" (o player está trocando de
+    faixa: não é pausa). A capa só é lida quando `want_cover(chave)` pede, para não ler a mesma
+    imagem a cada segundo. Usa os mesmos controles do volume na barra de tarefas: Spotify, YouTube
+    no navegador, players… Bloqueante: chamar fora da thread da interface.
     """
     if not WINDOWS:
-        return None
+        return "paused", "", None
     import asyncio
     try:
-        return asyncio.run(_media_async())
+        return asyncio.run(_media_async(want_cover))
     except Exception:  # noqa: BLE001
         log.debug("Mídia indisponível", exc_info=True)
-        return None
+        return "paused", "", None
 
 
-async def _media_async():
+async def _media_async(want_cover):
     from winrt.windows.media.control import \
         GlobalSystemMediaTransportControlsSessionManager as Manager
     manager = await Manager.request_async()
     session = manager.get_current_session()
     if session is None:
-        return None
-    if int(session.get_playback_info().playback_status) != 4:  # Playing
-        return None
+        return "paused", "", None
+    status = int(session.get_playback_info().playback_status)
+    if status in (1, 2):  # Opened / Changing: pulando de faixa
+        return "busy", "", None
+    if status != 4:       # Closed, Stopped, Paused
+        return "paused", "", None
     props = await session.try_get_media_properties_async()
     key = f"{props.title} - {props.artist}"
-    if props.thumbnail is None:
-        return key, None
+    if props.thumbnail is None or not want_cover(key):
+        return "playing", key, None
     from winrt.windows.storage.streams import DataReader
     stream = await props.thumbnail.open_read_async()
     size = int(stream.size)
@@ -316,4 +321,4 @@ async def _media_async():
         buf = bytearray(size)
         reader.read_bytes(buf)
         data = bytes(buf)
-    return key, data
+    return "playing", key, data

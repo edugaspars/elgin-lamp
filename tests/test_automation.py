@@ -257,3 +257,65 @@ def test_image_color(qapp):
     assert b == 255 and r < 80
     assert image_color(b"nao e imagem") is None
 
+
+
+def test_cover_tracker_waits_for_the_new_cover():
+    """O Windows às vezes troca o nome da música antes da capa: continua lendo até a imagem mudar."""
+    from lampdesk.automation import CoverTracker
+    t = CoverTracker()
+    assert t.want_cover("A - x")
+    assert t.update("playing", "A - x", "capa-a") == "color"
+    assert t.want_cover("A - x")                        # logo depois da troca ainda confere a capa
+    for _ in range(CoverTracker.SETTLE):
+        assert t.update("playing", "A - x", "capa-a") == "keep"
+    assert not t.want_cover("A - x")                    # mesma música, capa já lida
+    assert t.want_cover("B - y")                        # trocou: lê de novo
+    assert t.update("playing", "B - y", "capa-a") == "keep"  # capa ainda é a antiga
+    assert t.want_cover("B - y")                        # então continua conferindo
+    assert t.update("playing", "B - y", "capa-b") == "color"
+    for _ in range(CoverTracker.SETTLE):
+        t.update("playing", "B - y", None)
+    assert not t.want_cover("B - y")                    # depois de alguns segundos, para de reler
+
+
+def test_cover_tracker_pause_and_track_skip():
+    from lampdesk.automation import CoverTracker
+    t = CoverTracker()
+    t.update("playing", "A - x", "capa-a")
+    assert t.update("busy") == "keep"                   # pulando de faixa: não é pausa
+    assert t.update("paused") == "keep"                 # pausa rápida: espera um pouco
+    assert t.update("playing", "A - x", None) == "keep"
+    assert t.update("paused") == "keep"
+    assert t.update("paused") == "stop"                 # pausou de verdade: luz volta ao que era
+    assert t.update("paused") == "keep"                 # só uma vez
+    assert t.want_cover("A - x")
+    assert t.update("playing", "A - x", "capa-a") == "color"  # deu play: a cor volta
+
+
+def test_cover_events_drive_the_music_layer(env):
+    qapp, store, svc, auto = env
+    store.config.settings.music.enabled = True
+    auto._on_cover(("playing", "A - x", "capa-a", (255, 0, 0)))
+    assert wait(qapp, lambda: svc.state("a").color == (255, 0, 0))
+    for _ in range(2):
+        auto._on_cover(("paused", "", None, None))
+    assert wait(qapp, lambda: svc.state("a").mode == "white" and svc.state("a").brightness == 40)
+
+
+def test_screen_light_uses_only_the_primary_monitor(qapp):
+    """Com dois monitores, a captura pode vir com a área inteira: a cor sai só do principal."""
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QColor, QImage, QPainter
+    from lampdesk.automation import image_color, primary_area
+
+    primary, virtual = QRect(1920, 0, 1920, 1080), QRect(0, 0, 3840, 1080)  # principal à direita
+    whole = QImage(384, 108, QImage.Format.Format_RGB32)  # captura reduzida dos dois monitores
+    p = QPainter(whole)
+    p.fillRect(0, 0, 192, 108, QColor(255, 0, 0))      # monitor da esquerda: vermelho
+    p.fillRect(192, 0, 192, 108, QColor(0, 0, 255))    # principal: azul
+    p.end()
+    r, g, b = image_color(primary_area(whole, primary, virtual))
+    assert b == 255 and r < 60
+    only = whole.copy(192, 0, 192, 108)  # quando o Qt já entrega só o principal, não recorta de novo
+    assert primary_area(only, primary, virtual).size() == only.size()
+    assert primary_area(only, primary, primary) is only

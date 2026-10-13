@@ -8,6 +8,7 @@ Quando uma camada termina, a lâmpada volta ao que estava antes dela. Mexer na l
 
 import contextlib
 import datetime as dt
+import hashlib
 import logging
 import threading
 import time
@@ -187,6 +188,47 @@ def paint(svc, ids, look) -> None:
         svc.set_brightness(ids, look[1])
     else:
         svc.apply_scene(ids, look)
+
+
+class CoverTracker:
+    """Decide quando ler a capa de novo e quando a música parou (sem Windows: testável).
+
+    O Windows às vezes troca o nome da música antes da capa; por isso, depois de cada troca,
+    a capa é relida por alguns segundos até a imagem mudar. Pular de faixa passa por "busy"
+    e uma pausa curta não devolve a luz na hora.
+    """
+
+    SETTLE = 4       # leituras extras da capa depois de trocar de música (~4 s)
+    PAUSE_GRACE = 2  # leituras pausado antes de a luz voltar ao que era (~2 s)
+
+    def __init__(self):
+        self.key = ""
+        self.digest = None
+        self.settle = 0
+        self.idle = 0
+
+    def want_cover(self, key: str) -> bool:
+        return key != self.key or self.settle > 0 or self.digest is None
+
+    def update(self, status: str, key: str = "", digest: Optional[str] = None) -> str:
+        """"color" (capa nova), "stop" (parou: devolver a luz) ou "keep"."""
+        if status == "busy":
+            return "keep"
+        if status != "playing":
+            self.idle += 1
+            if self.idle >= self.PAUSE_GRACE and (self.key or self.digest):
+                self.key, self.digest, self.settle = "", None, 0
+                return "stop"
+            return "keep"
+        self.idle = 0
+        if key != self.key:
+            self.key, self.settle = key, self.SETTLE
+        elif self.settle > 0:
+            self.settle -= 1
+        if digest is not None and digest != self.digest:
+            self.digest = digest
+            return "color"
+        return "keep"
 
 
 class _Fade:
@@ -378,6 +420,7 @@ class Automation(QObject):
         self._hotkey_sig = None
         self._music_color = None
         self._cover_busy = False
+        self.cover = CoverTracker()
 
         service.userCommand.connect(self._on_user)
         self._hotkey.connect(self._on_hotkey, Qt.ConnectionType.QueuedConnection)
@@ -387,7 +430,7 @@ class Automation(QObject):
         self._clock.timeout.connect(self.run_time_rules)
         self._circ_timer = QTimer(self, interval=60_000)
         self._circ_timer.timeout.connect(self.circadian_tick)
-        self._cover_timer = QTimer(self, interval=3000)
+        self._cover_timer = QTimer(self, interval=1000)
         self._cover_timer.timeout.connect(self._poll_cover)
         self._screen_timer = QTimer(self, interval=500)
         self._screen_timer.timeout.connect(self._poll_screen)
@@ -770,6 +813,7 @@ class Automation(QObject):
             self.stack.pop("music")
             self._music_color = None
             self.last_track = ""
+            self.cover = CoverTracker()
 
     def set_music_color(self, rgb) -> None:
         """Nova cor da música/tela (None = nada tocando: a luz volta ao normal)."""
@@ -787,49 +831,44 @@ class Automation(QObject):
         if self._cover_busy or not winsys.WINDOWS:
             return
         self._cover_busy = True
-        last = self.last_track
+        want = self.cover.want_cover
 
         def job():
             try:
-                res = winsys.media_now()
-                if res is None:
-                    self._cover.emit(None)
-                    return
-                key, data = res
-                if key == last:
-                    self._cover.emit((key, "same"))
-                    return
-                self._cover.emit((key, image_color(data) if data else None))
+                status, key, data = winsys.media_now(want)
+                digest = hashlib.sha1(data).hexdigest() if data else None
+                self._cover.emit((status, key, digest, image_color(data) if data else None))
             except Exception:  # noqa: BLE001
                 log.debug("Capa do álbum", exc_info=True)
-                self._cover.emit(("", "same"))
+                self._cover.emit(("busy", "", None, None))
         threading.Thread(target=job, daemon=True, name="cover").start()
 
     def _on_cover(self, res) -> None:
         self._cover_busy = False
-        if not self.cfg.settings.music.enabled or self.cfg.settings.music.source != "cover":
+        m = self.cfg.settings.music
+        if not m.enabled or m.source != "cover":
             return
-        if res is None:
+        status, key, digest, color = res
+        what = self.cover.update(status, key, digest)
+        if what == "stop":
             self.last_track = ""
             self.set_music_color(None)
-            return
-        key, color = res
-        if color == "same":
-            return
-        self.last_track = key
-        if color is not None:
-            self.set_music_color(color)
-        self.changed.emit()
+            self.changed.emit()
+        elif what == "color":
+            self.last_track = key
+            if color is not None:
+                self.set_music_color(color)
+            self.changed.emit()
 
     def _poll_screen(self) -> None:
         from PySide6.QtGui import QGuiApplication
-        screen = QGuiApplication.primaryScreen()
+        screen = QGuiApplication.primaryScreen()  # só o monitor principal (Configurações do Windows › Tela)
         if screen is None:
             return
         pm = screen.grabWindow(0)
         if pm.isNull():
             return
-        rgb = image_color(pm.toImage())
+        rgb = image_color(primary_area(pm.toImage(), screen.geometry(), screen.virtualGeometry()))
         if rgb is not None:
             self.set_music_color(rgb)
 
@@ -852,6 +891,22 @@ class Automation(QObject):
     def _active_names(self) -> List[str]:
         names = {r.id: r.name for r in self.cfg.rules}
         return [names.get(rid, rid) for rid in self._active]
+
+
+def primary_area(image, geo, virtual):
+    """Recorta o monitor principal quando a captura vem com a área de trabalho inteira.
+
+    Conforme a versão do Qt/Windows, capturar a "tela" pode trazer todos os monitores juntos;
+    a cor deve vir só do principal. `geo` e `virtual` são as geometrias do Qt (pixels lógicos).
+    """
+    if virtual.size() == geo.size() or virtual.width() <= 0 or virtual.height() <= 0:
+        return image  # um monitor só
+    ratio = image.width() / virtual.width()
+    if abs(image.height() - virtual.height() * ratio) > max(2, 0.02 * image.height()):
+        return image  # o formato não é o da área inteira: já veio só o principal
+    from PySide6.QtCore import QRect
+    return image.copy(QRect(round((geo.x() - virtual.x()) * ratio), round((geo.y() - virtual.y()) * ratio),
+                            round(geo.width() * ratio), round(geo.height() * ratio)))
 
 
 def image_color(image) -> Optional[tuple]:
