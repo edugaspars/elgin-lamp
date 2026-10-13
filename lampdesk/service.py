@@ -1,5 +1,6 @@
 """Ponte entre a interface (Qt) e as lâmpadas: conexões ao vivo e timers."""
 
+import contextlib
 import logging
 import time
 from dataclasses import replace
@@ -17,6 +18,7 @@ class LampService(QObject):
     stateChanged = Signal(str, object)      # lamp_id, LampState
     versionDetected = Signal(str, str)      # lamp_id, versão
     timersChanged = Signal()
+    userCommand = Signal(list, str)         # ids e tipo de comando mexidos à mão (painel, bandeja, atalhos)
 
     # usados pelas threads das lâmpadas; o Qt entrega na thread da interface
     _bulbState = Signal(str, object)
@@ -30,6 +32,7 @@ class LampService(QObject):
         self._signature: Dict[str, tuple] = {}
         self._states: Dict[str, LampState] = {}
         self._timers: Dict[str, tuple] = {}  # chave -> (deadline, [ids])
+        self._auto = 0  # > 0 enquanto as automações mandam comandos
 
         self._bulbState.connect(self._on_bulb_state, Qt.ConnectionType.QueuedConnection)
         self._bulbVersion.connect(self.versionDetected, Qt.ConnectionType.QueuedConnection)
@@ -102,6 +105,24 @@ class LampService(QObject):
         for bulb in self._bulbs.values():
             bulb.stop()
 
+    def flush(self, timeout: float = 2.0) -> bool:
+        """Espera os comandos na fila saírem (antes de o PC desligar). True se deu tempo."""
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            if not any(getattr(b, "pending", lambda: False)() for b in self._bulbs.values()):
+                return True
+            time.sleep(0.03)
+        return False
+
+    @contextlib.contextmanager
+    def automated(self):
+        """Comandos dentro deste bloco vêm das automações (não contam como mudança manual)."""
+        self._auto += 1
+        try:
+            yield
+        finally:
+            self._auto -= 1
+
     # ------------------------------------------------------------- comandos ---
     def refresh(self, ids: Optional[Iterable[str]] = None) -> None:
         for lid in ids if ids is not None else list(self._bulbs):
@@ -132,7 +153,21 @@ class LampService(QObject):
             return replace(s, is_on=True, mode="white", brightness=scene.brightness, temperature=scene.temperature)
         self._apply(ids, "scene", scene, optimistic)
 
+    def apply_look(self, ids, look: Optional[Scene]) -> None:
+        """Aplica um "visual" (cena) ou desliga (None)."""
+        if look is None:
+            self.set_power(ids, False)
+        else:
+            self.apply_scene(ids, look)
+
+    def countdown(self, ids, seconds: int) -> None:
+        """Timer interno da lâmpada: desliga sozinha depois de N segundos, mesmo com o PC desligado."""
+        self._apply(ids, "countdown", int(seconds), lambda s: s)
+
     def _apply(self, ids, kind, value, optimistic) -> None:
+        ids = list(ids)
+        if not self._auto and kind != "countdown":
+            self.userCommand.emit(ids, kind)
         for lid in ids:
             bulb = self._bulbs.get(lid)
             if bulb is None:

@@ -11,7 +11,8 @@ from PySide6.QtCore import QTimer
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
-from . import APP_ID, APP_NAME, __version__, autostart, scheduler
+from . import APP_ID, APP_NAME, __version__, autostart, rules, scheduler
+from .automation import Automation, default_rules
 from .i18n import set_language, tr
 from .paths import data_dir, log_file
 from .service import LampService
@@ -58,12 +59,19 @@ class LampDeskApp:
         if not cfg.scenes:
             cfg.scenes = default_scenes(tr)
             self.store.save()
+        if not cfg.settings.rules_seeded:  # exemplos de automação (também para quem atualizou)
+            cfg.rules.extend(default_rules(tr, cfg))
+            cfg.settings.rules_seeded = True
+            self.store.save()
 
         self.service = LampService(self.store, demo=demo)
         self.service.versionDetected.connect(self._version_detected)
         self.service.stateChanged.connect(self._state_changed)
+        self.automation = Automation(self.store, self.service, demo=demo, watch=not demo)
         self._fired = {}
         self._build_ui()
+        self.automation.changed.connect(self._state_changed)
+        QTimer.singleShot(6000, self.automation.startup)  # depois que as lâmpadas conectam
 
         self._routine_timer = QTimer(interval=20_000)
         self._routine_timer.timeout.connect(self.run_routines)
@@ -77,7 +85,7 @@ class LampDeskApp:
     def _build_popup(self):
         from .ui.popup import Popup
 
-        self.popup = Popup(self.store, self.service)
+        self.popup = Popup(self.store, self.service, self.automation)
         self.popup.openSettings.connect(self.open_settings)
 
     def _build_ui(self):
@@ -113,7 +121,7 @@ class LampDeskApp:
 
         self.popup.hide()
         if self.settings_window is None:
-            self.settings_window = SettingsWindow(self.store, self.service)
+            self.settings_window = SettingsWindow(self.store, self.service, self.automation)
             self.settings_window.configChanged.connect(self._config_changed)
             self.settings_window.languageChanged.connect(lambda: QTimer.singleShot(0, self.rebuild_ui))
             self.settings_window.themeChanged.connect(self.apply_theme)
@@ -134,6 +142,7 @@ class LampDeskApp:
 
     def _config_changed(self):
         self.service.reload()
+        self.automation.reload()
         self.tray.update_state()
         if self.popup.isVisible():
             self.popup.update_view()
@@ -149,17 +158,22 @@ class LampDeskApp:
     def run_routines(self):
         cfg = self.store.config
         now = dt.datetime.now().astimezone()
-        for r in scheduler.due(cfg.routines, now, cfg.settings.location, self._fired):
+        due = scheduler.due(cfg.routines, now, cfg.settings.location, self._fired)
+        if rules.paused(cfg.settings.pause_until, now.date()):  # férias: rotinas pausadas
+            return
+        for r in due:
             ids = [l.id for l in cfg.resolve_targets(r.targets)]
             log.info("Rotina '%s' executada (%s)", r.name, r.action)
-            if r.action == "on":
-                self.service.set_power(ids, True)
-            elif r.action == "off":
-                self.service.set_power(ids, False)
-            elif r.action == "scene" and cfg.scene(r.scene_id):
-                self.service.apply_scene(ids, cfg.scene(r.scene_id))
+            with self.service.automated():
+                if r.action == "on":
+                    self.service.set_power(ids, True)
+                elif r.action == "off":
+                    self.service.set_power(ids, False)
+                elif r.action == "scene" and cfg.scene(r.scene_id):
+                    self.service.apply_scene(ids, cfg.scene(r.scene_id))
 
     def quit(self):
+        self.automation.shutdown()
         self.service.shutdown()
         self.tray.hide()
         self.qapp.quit()

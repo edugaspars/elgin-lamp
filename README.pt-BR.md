@@ -41,11 +41,14 @@ O **LampDesk** coloca suas lâmpadas a **um clique**, ao lado do relógio do Win
 |---|---|
 | ⚡ **Tempo real** | Os comandos chegam à lâmpada em milissegundos. Mudanças feitas pela Alexa, pelo app ou pelo interruptor aparecem no painel na hora. |
 | 🎛️ **Controle completo** | Liga/desliga, brilho, temperatura do branco (quente ↔ frio) e cor (RGB). |
-| 💡 **Várias lâmpadas** | Controle cada lâmpada ou todas de uma vez. |
+| 💡 **Várias lâmpadas e grupos** | Controle cada lâmpada, um grupo (ex.: Escritório) ou todas de uma vez. |
 | 🫧 **Visual de vidro** | Temas escuro e claro, com um painel de vidro fosco que desfoca o que está atrás e brilha na cor da lâmpada. Fundo Mica no Windows 11 e opção *Reduzir transparência*. |
 | 🎬 **Cenas** | Leitura, Relaxar, Foco, Noite, Cinema… e as suas. |
 | ⏰ **Rotinas** | Por horário e dia da semana ou pelo **nascer/pôr do sol**, com deslocamento em minutos. |
 | 🌙 **Timer** | "Desligar em 30 minutos". |
+| 🤖 **Automações** | Editor "Quando / Se / Então": apagar ao bloquear o PC, modo jogo/filme em tela cheia, amanhecer ao ligar o PC, apagar aos poucos, apagar 2 min depois de desligar o PC, lembretes que piscam, atalhos de teclado globais. |
+| 💬 **Modo Discord** | Mensagem pisca azul, ligação pisca verde e branco (lê as notificações do Windows). |
+| 🌅 **Ciclo do dia, música e pomodoro** | Luz fria de dia e quente à noite, cor da capa do álbum ou da tela, pomodoro que pisca no fim de cada etapa e pausa de férias. |
 | 🔐 **Privacidade** | IP e chaves ficam só no seu PC, **criptografados**. Nada vai para o repositório. |
 | 🔑 **Configuração fácil** | Busca as lâmpadas na rede e obtém a chave com um **QR Code** no Smart Life. |
 | 🌎 **Português e inglês** | Detecta o idioma do sistema, e você pode trocar quando quiser. |
@@ -177,6 +180,23 @@ As credenciais não são salvas.
 | Trocar o que o slider controla | Clique nos cards **Brilho**, **Branco** ou **Cor** |
 | Escolher uma cor exata | Clique de novo no card **Cor** |
 | Rotinas e nascer/pôr do sol | Ícone ⏰ no rodapé do painel |
+| Modo Discord, ciclo do dia, música, pomodoro, férias | Ícone ⚡ no rodapé do painel (ou **Automações** no menu da bandeja) |
+
+### Automações
+
+Em **Configurações › Automações** cada regra tem três partes:
+
+<img src="docs/settings-automations.png" width="640" alt="Aba Automações com as regras de exemplo">
+
+- **Quando:** saí do PC (bloqueado ou tela apagada), tela cheia / programa aberto, horário, nascer/pôr do sol, ao ligar o PC, ao desligar o PC, notificação de um app ou tecla de atalho.
+- **Se:** dias da semana, só entre dois horários, só quando estiver escuro, só com o modo Discord ligado.
+- **Então:** ligar, desligar, cena, cor, brilho, piscar, acender/apagar aos poucos, desligar depois (timer da própria lâmpada), pomodoro, ligar/desligar modos.
+
+A aba já vem com exemplos desligados: é só marcar e escolher o grupo. Regras que duram (PC bloqueado, tela cheia) voltam a luz ao que era quando terminam, e **mexer na luz à mão sempre vence**: a automação não desfaz o que você mudou.
+
+- **Apagar depois de desligar o PC:** o app pede à lâmpada para se desligar sozinha em N minutos (o mesmo timer do app Smart Life), então funciona mesmo com o PC desligado. Se o PC ligar de novo antes, o pedido é cancelado.
+- **Discord e outros apps:** o app lê as notificações que o Windows mostra no canto da tela. Canais silenciados no Discord não geram notificação e não piscam. A aba **Diagnóstico** mostra a última notificação lida e permite simular uma.
+- **Partes só do Windows:** bloqueio de tela, tela cheia, notificações, atalhos globais, capa do álbum e desligamento. No Linux as regras de horário, ciclo do dia, cor da tela e pomodoro funcionam; as demais ficam inativas.
 
 ### Linha de comando
 
@@ -210,6 +230,7 @@ python -m lampdesk.cli off
 | A busca na rede não acha nada | Permita o app no Firewall do Windows em **redes privadas** (portas UDP 6666, 6667 e 7000) e confirme que a rede está marcada como *Privada*. |
 | Erro de chave / não obedece | O Local Key muda quando a lâmpada é pareada de novo: busque-o outra vez. |
 | Rotina não rodou | As rotinas rodam com o app aberto: ative **Iniciar com o sistema**. Depois de uma suspensão, a rotina ainda roda em até 10 minutos. |
+| Automação não disparou | Veja **Configurações › Automações › Diagnóstico**: mostra se o PC está bloqueado, o programa em primeiro plano, a última notificação lida e os atalhos que outro programa já usa. Para notificações, o Discord precisa estar com as notificações do Windows ligadas. |
 | Funciona às vezes | Feche outras integrações locais (Home Assistant/LocalTuya), porque a lâmpada aceita poucas conexões ao mesmo tempo. |
 
 Os logs ficam em `%APPDATA%\LampDesk\lampdesk.log`. Para log detalhado, use `--verbose`.
@@ -227,6 +248,9 @@ python -m lampdesk --demo                # roda sem hardware
 ```
 lampdesk/
   app.py          bandeja, instância única, rotinas
+  automation.py   motor das automações: camadas de luz, piscar, apagar aos poucos, ciclo do dia, música, pomodoro
+  rules.py        lógica das regras sem Qt (condições, notificações, curva do dia, cores, atalhos)
+  winsys.py       leituras do Windows (bloqueio, tela cheia, notificações, atalhos, mídia)
   lamp.py         protocolo Tuya: LiveBulb (conexão ao vivo), TuyaBulb, lâmpada simulada
   service.py      ponte entre as conexões e a interface Qt
   storage.py      modelo de dados + arquivo criptografado
@@ -256,7 +280,6 @@ O workflow [Release](.github/workflows/release.yml) roda no merge: cria a tag `v
 Contribuições são bem-vindas! Algumas ideias:
 
 - suporte a mais tipos de dispositivo Tuya (tomadas, fitas LED);
-- atalhos de teclado globais;
 - instalador (MSI/winget) e assinatura do executável;
 - mais idiomas (veja `lampdesk/i18n.py`).
 

@@ -176,3 +176,52 @@ def test_routine_runs(qapp, app):
     app.store.config.routines = [Routine("Agora", time=now.strftime("%H:%M"), action="off")]
     app.run_routines()
     assert wait(qapp, lambda: not app.service.any_on())
+
+
+def test_automations_tab_and_rule_dialogs(qapp, app):
+    from lampdesk.ui.automations import RuleDialog, describe_rule
+
+    cfg = app.store.config
+    assert len(cfg.rules) >= 9 and cfg.settings.rules_seeded  # exemplos criados na primeira abertura
+    app.open_settings("automations")
+    win = app.settings_window
+    assert win.tabs.currentIndex() == 3
+    assert win.automations.rules.list.count() == len(cfg.rules)
+    for r in list(cfg.rules):
+        d = RuleDialog(win, cfg, r, automation=app.automation)
+        before = (r.trigger, r.action, r.hotkey, r.apps, r.window_from)
+        d.value()
+        assert (r.trigger, r.action, r.hotkey, r.apps, r.window_from) == before  # editar sem mudar nada
+        assert describe_rule(cfg, r).startswith(r.name)
+        d.deleteLater()
+
+    win.automations.features.discord.setChecked(True)
+    assert cfg.settings.discord_mode
+    win.automations.features.circ.setChecked(True)
+    assert cfg.settings.circadian.enabled
+    win.automations.tabs.setCurrentIndex(2)
+    win.automations.diag.refresh()
+    assert win.automations.diag.values["locked"].text()
+
+
+def test_groups_in_panel_and_menus(qapp, app):
+    from PySide6.QtWidgets import QMenu
+    from lampdesk.storage import Group
+    from lampdesk.ui.tray import fill_automation_menu
+
+    cfg = app.store.config
+    ids = [l.id for l in cfg.lamps]
+    cfg.groups.append(Group("Escritório", ids[:2], id="grp"))
+    app.popup._select("grp")
+    assert app.popup.ids() == ids[:2]
+    assert app.popup.selector.value == "Escritório"
+    m = QMenu()
+    fill_automation_menu(m, app.automation, app.open_settings)
+    texts = [a.text() for a in m.actions()]
+    assert any("Discord" in t for t in texts)
+    app.automation.pomodoro.start()
+    m.clear()
+    fill_automation_menu(m, app.automation, app.open_settings)
+    assert any(":" in a.text() for a in m.actions())  # mostra o tempo restante
+    app.automation.pomodoro.stop()
+    app.tray.rebuild()

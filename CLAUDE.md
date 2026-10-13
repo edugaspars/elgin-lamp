@@ -22,12 +22,15 @@ No Linux, o Qt precisa de `libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1
 ## Estrutura
 
 - `lampdesk/lamp.py`: protocolo Tuya (LiveBulb mantém conexão aberta). Sem Qt.
-- `lampdesk/service.py`: ponte entre as conexões e a interface.
+- `lampdesk/service.py`: ponte entre as conexões e a interface. Comandos dentro de `service.automated()`
+  vêm das automações; os demais contam como mudança manual (`userCommand`).
+- `lampdesk/automation.py`: motor das automações (camadas de luz com prioridade, piscar, fades, ciclo do dia,
+  música, pomodoro). `rules.py` tem a lógica sem Qt; `winsys.py`, as leituras do Windows (ctypes/winrt).
 - `lampdesk/storage.py` + `crypto.py`: configuração criptografada (DPAPI / Fernet + keyring).
 - `lampdesk/paths.py`: pasta de dados, sempre fora do projeto (`LAMPDESK_HOME` sobrescreve, usado nos testes).
 - `lampdesk/ui/`: `theme.py` (paletas), `glass.py` (desfoque do fundo do painel),
   `native.py` (DWM/Mica do Windows), `widgets.py` (componentes desenhados à mão),
-  `popup.py` (painel), `settings.py`, `tray.py`.
+  `popup.py` (painel), `settings.py`, `automations.py` (aba Automações), `tray.py`.
 - `lampdesk/version.py`: versão calculada pelas tags do Git.
 
 ## Regras

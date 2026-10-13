@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QApplication, QColorDialog, QHBoxLayout, QLabel, 
 from ..i18n import tr
 from ..lamp import LampState, display_rgb, rgb_from_hue
 from . import glass, icons, theme
-from .tray import style_menu
+from .tray import fill_automation_menu, style_menu
 from .widgets import BigSlider, BulbView, CircleButton, Fader, HeaderSelector, IconButton, Pill, PowerButton, Tile
 
 WIDTH = 400
@@ -37,10 +37,11 @@ def fmt_remaining(sec: int) -> str:
 class Popup(QWidget):
     openSettings = Signal(str)
 
-    def __init__(self, store, service, parent=None):
+    def __init__(self, store, service, automation=None, parent=None):
         super().__init__(parent)
         self.store = store
         self.service = service
+        self.automation = automation
         self.selection = store.config.settings.last_selected or "*"
         self.slider_mode = "brightness"
         self.last_scene = ""
@@ -48,6 +49,7 @@ class Popup(QWidget):
         self._arrow_x = WIDTH / 2
         self._hidden_at = 0.0
         self._suffix = ""
+        self._status = ""
         self._backdrop = None
         self._glow = QColor(255, 190, 110)
         self._glow_level = Fader(self, 0, 420)
@@ -206,6 +208,9 @@ class Popup(QWidget):
         self.status_text = QLabel()
         self.status_text.setFont(theme.font(12))
         self.status_text.setStyleSheet(f"color: {theme.css(theme.MUTED)};")
+        self.auto_btn = IconButton("bolt")
+        self.auto_btn.setToolTip(tr("automations"))
+        self.auto_btn.clicked.connect(self._automation_menu)
         routines = IconButton("clock")
         routines.setToolTip(tr("routines"))
         routines.clicked.connect(lambda: self.openSettings.emit("routines"))
@@ -215,6 +220,8 @@ class Popup(QWidget):
         f.addWidget(self.status_icon)
         f.addWidget(self.status_text)
         f.addStretch(1)
+        if self.automation is not None:
+            f.addWidget(self.auto_btn)
         f.addWidget(routines)
         f.addWidget(settings)
         return f
@@ -241,11 +248,16 @@ class Popup(QWidget):
         self.stack.setCurrentIndex(page)
         if not lamps:
             return
-        if self.selection != "*" and not self.store.config.lamp(self.selection):
+        cfg = self.store.config
+        if self.selection != "*" and not (cfg.lamp(self.selection) or cfg.group(self.selection)):
             self.selection = "*"
 
-        name = tr("all_lamps") if self.selection == "*" else self.store.config.lamp(self.selection).name
-        self.selector.set_texts(tr("lamp") if self.selection != "*" else tr("lamps"), name)
+        if self.selection == "*":
+            self.selector.set_texts(tr("lamps"), tr("all_lamps"))
+        elif cfg.group(self.selection):
+            self.selector.set_texts(tr("group"), cfg.group(self.selection).name)
+        else:
+            self.selector.set_texts(tr("lamp"), cfg.lamp(self.selection).name)
 
         s = self._state()
         accent = QColor(*display_rgb(s))
@@ -298,7 +310,8 @@ class Popup(QWidget):
         else:
             text, ic, col = tr("status.connecting"), "shield", theme.DIM
         self.status_icon.setPixmap(icons.pixmap(ic, 15, col))
-        self.status_text.setText(text)
+        self._status = text
+        self.status_text.setText(self._status_line())
         err = next((st.error for st in states if st.error), "")
         self.status_text.setToolTip(err)
         self._root.activate()
@@ -315,6 +328,13 @@ class Popup(QWidget):
     def _update_timer_tile(self):
         rem = self.service.timer_remaining(self.selection)
         self.t_timer.set_value(fmt_remaining(rem) if rem is not None else tr("off"))
+        self.status_text.setText(self._status_line())
+
+    def _status_line(self) -> str:
+        pomo = self.automation.pomodoro if self.automation is not None else None
+        if pomo is not None and pomo.running():
+            return f"{tr(f'pomodoro.{pomo.phase}')} · {fmt_remaining(pomo.remaining())}"
+        return self._status
 
     # ------------------------------------------------------------- ações ---
     def _step(self):
@@ -370,15 +390,17 @@ class Popup(QWidget):
     def _choose_lamp(self):
         m = self._menu()
         group = QActionGroup(m)
-        options = [("*", tr("all_lamps"))] + [(l.id, l.name) for l in self.store.config.lamps]
+        cfg = self.store.config
+        options = [("*", tr("all_lamps"))] + [(g.id, g.name) for g in cfg.groups] + \
+            [(l.id, l.name) for l in cfg.lamps]
         for key, label in options:
-            st = None if key == "*" else self.service.state(key)
+            st = self.service.state(key) if cfg.lamp(key) else None
             suffix = "" if st is None else ("  ●" if st.online and st.is_on else ("  ○" if st.online else "  ⚠"))
             a = QAction(label + suffix, m, checkable=True, checked=key == self.selection)
             a.triggered.connect(lambda _=False, k=key: self._select(k))
             group.addAction(a)
             m.addAction(a)
-            if key == "*":
+            if key == "*" or (cfg.groups and key == cfg.groups[-1].id):
                 m.addSeparator()
         m.exec(self.selector.mapToGlobal(QPoint(0, self.selector.height() + 4)))
 
@@ -388,6 +410,11 @@ class Popup(QWidget):
         self.store.save()
         self.service.refresh(self.ids())
         self.update_view()
+
+    def _automation_menu(self):
+        m = self._menu()
+        fill_automation_menu(m, self.automation, self.openSettings.emit, self)
+        m.exec(self.auto_btn.mapToGlobal(QPoint(0, self.auto_btn.height() + 4)))
 
     def _choose_scene(self):
         m = self._menu()

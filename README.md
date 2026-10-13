@@ -41,11 +41,14 @@ Smart bulbs are great until you need them **while you're at your computer**. Gra
 |---|---|
 | ⚡ **Real time** | Commands reach the bulb in milliseconds. Changes made through Alexa, the phone app or the wall switch show up in the panel instantly. |
 | 🎛️ **Full control** | Power, brightness, white temperature (warm ↔ cool) and color (RGB). |
-| 💡 **Multiple bulbs** | Control each bulb individually or all of them at once. |
+| 💡 **Multiple bulbs and groups** | Control each bulb, a group (e.g. Office) or all of them at once. |
 | 🫧 **Glass look** | Dark and light themes with a frosted-glass panel that blurs what's behind it and glows in the color of the bulb. Mica background on Windows 11, plus a *Reduce transparency* option. |
 | 🎬 **Scenes** | Reading, Relax, Focus, Night, Movie… plus your own. |
 | ⏰ **Routines** | By time and weekday, or at **sunrise/sunset** with a minute offset. |
 | 🌙 **Sleep timer** | "Turn off in 30 minutes". |
+| 🤖 **Automations** | "When / If / Then" editor: turn off when the PC locks, game/movie mode in fullscreen, sunrise when the PC turns on, fade out, turn off 2 min after the PC shuts down, blinking reminders, global hotkeys. |
+| 💬 **Discord mode** | A message blinks blue, a call blinks green and white (reads Windows notifications). |
+| 🌅 **Daylight cycle, music and pomodoro** | Cool light by day and warm at night, color from the album cover or the screen, a pomodoro that blinks at the end of each step, and a vacation pause. |
 | 🔐 **Privacy** | IPs and keys stay **encrypted** on your PC only. Nothing goes into the repository. |
 | 🔑 **Easy setup** | Finds the bulbs on your network and gets the key with a **QR code** scanned in Smart Life. |
 | 🌎 **English and Portuguese** | Follows your system language; switch anytime. |
@@ -177,6 +180,23 @@ Credentials are not saved.
 | Change what the slider controls | Click the **Brightness**, **White** or **Color** cards |
 | Pick an exact color | Click the **Color** card again |
 | Routines and sunrise/sunset | The ⏰ icon in the panel footer |
+| Discord mode, daylight cycle, music, pomodoro, vacation | The ⚡ icon in the panel footer (or **Automations** in the tray menu) |
+
+### Automations
+
+In **Settings › Automations** each rule has three parts:
+
+<img src="docs/settings-automations-en.png" width="640" alt="Automations tab with the example rules">
+
+- **When:** I left the PC (locked or screen off), fullscreen / program open, time, sunrise/sunset, when the PC turns on, when the PC shuts down, an app notification or a hotkey.
+- **If:** weekdays, only between two times, only when it's dark, only with Discord mode on.
+- **Then:** turn on, turn off, scene, color, brightness, blink, fade in/out, turn off later (the bulb's own timer), pomodoro, toggle modes.
+
+The tab comes with disabled examples: just check one and pick the group. Lasting rules (PC locked, fullscreen) put the light back when they end, and **changing the light by hand always wins**: automations don't undo what you changed.
+
+- **Turn off after the PC shuts down:** the app asks the bulb to switch itself off in N minutes (the same timer as in the Smart Life app), so it works with the PC off. If the PC turns back on first, the request is cancelled.
+- **Discord and other apps:** the app reads the notifications Windows shows in the corner of the screen. Muted Discord channels create no notification and don't blink. The **Diagnostics** tab shows the last notification read and lets you simulate one.
+- **Windows-only parts:** screen lock, fullscreen, notifications, global hotkeys, album cover and shutdown. On Linux, time rules, daylight cycle, screen color and pomodoro work; the rest stays inactive.
 
 ### Command line
 
@@ -210,6 +230,7 @@ python -m lampdesk.cli off
 | Network scan finds nothing | Allow the app through Windows Firewall on **private networks** (UDP ports 6666, 6667 and 7000) and make sure the network is marked *Private*. |
 | Key error / bulb ignores commands | The Local Key changes whenever the bulb is re-paired: fetch it again. |
 | A routine didn't run | Routines run while the app is open: enable **Start with system**. After sleep, a routine still runs up to 10 minutes late. |
+| An automation didn't fire | Check **Settings › Automations › Diagnostics**: it shows whether the PC is locked, the foreground program, the last notification read and hotkeys already taken by another program. For notifications, Discord must have Windows notifications enabled. |
 | Works intermittently | Close other local integrations (Home Assistant/LocalTuya), since bulbs accept only a few simultaneous connections. |
 
 Logs are in `%APPDATA%\LampDesk\lampdesk.log`. Use `--verbose` for detailed logging.
@@ -227,6 +248,9 @@ python -m lampdesk --demo                # run without hardware
 ```
 lampdesk/
   app.py          tray, single instance, routines
+  automation.py   automation engine: light layers, blink, fades, daylight cycle, music, pomodoro
+  rules.py        Qt-free rule logic (conditions, notifications, daylight curve, colors, hotkeys)
+  winsys.py       Windows readings (lock, fullscreen, notifications, hotkeys, media)
   lamp.py         Tuya protocol: LiveBulb (live connection), TuyaBulb, simulated bulb
   service.py      bridge between the connections and the Qt UI
   storage.py      data model + encrypted file
@@ -256,7 +280,6 @@ The [Release](.github/workflows/release.yml) workflow runs on the merge: it crea
 Contributions are welcome! Some ideas:
 
 - support for more Tuya device types (smart plugs, LED strips);
-- global keyboard shortcuts;
 - an installer (MSI/winget) and a code-signed executable;
 - more languages (see `lampdesk/i18n.py`).
 

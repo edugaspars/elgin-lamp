@@ -33,6 +33,7 @@ def main() -> int:
         env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
         subprocess.run([sys.executable, str(ROOT / "scripts" / "make_icon.py")], check=True, env=env)
         args += ["--icon", str(ROOT / "build" / "icon.ico")]
+        args += ["--collect-all", "winrt"]  # mídia do Windows (cor da capa do álbum): módulos nativos
     args.append(str(ROOT / "lampdesk" / "__main__.py"))
 
     import PyInstaller.__main__

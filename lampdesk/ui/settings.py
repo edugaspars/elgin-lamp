@@ -21,7 +21,7 @@ from ..crypto import mask
 from ..i18n import LANGUAGES, current, tr
 from ..lamp import FakeBulb, TuyaBulb
 from ..paths import data_dir
-from ..storage import PROTOCOL_VERSIONS, Lamp, Location, Routine, Scene
+from ..storage import PROTOCOL_VERSIONS, Group, Lamp, Location, Routine, Scene
 from . import icons, native, theme
 from .widgets import Segmented, SegmentedTabs
 
@@ -542,6 +542,7 @@ class LampsTab(QWidget):
         row.addWidget(button(tr("btn.add"), self.add, primary=True))
         row.addWidget(button(tr("btn.edit"), self.edit))
         row.addWidget(button(tr("btn.remove"), self.remove, danger=True))
+        row.addWidget(button(tr("groups.button"), self.groups))
         row.addStretch(1)
         row.addWidget(button(tr("btn.scan"), self.scan))
         row.addWidget(button(tr("btn.smartlife"), self.smartlife))
@@ -590,9 +591,11 @@ class LampsTab(QWidget):
         lamp = self._selected()
         if lamp and confirm(self, tr("confirm.remove", name=lamp.name)):
             self.cfg.lamps.remove(lamp)
-            for r in self.cfg.routines:
-                r.targets = [t for t in r.targets if t != lamp.id] or ["*"]
+            self.cfg.forget(lamp.id)
             self.win.changed()
+
+    def groups(self):
+        GroupsDialog(self, self.win).exec()
 
     def scan(self):
         d = ScanDialog(self, [l.device_id for l in self.cfg.lamps], demo=self.win.service.demo)
@@ -628,6 +631,105 @@ class LampsTab(QWidget):
                     self.cfg.lamps.append(Lamp(name=f.name or f.device_id[-4:], device_id=f.device_id,
                                                ip=f.ip, local_key=f.local_key, version=f.version))
             self.win.changed()
+
+
+class GroupDialog(_Dialog):
+    def __init__(self, parent, cfg, group: Group = None):
+        super().__init__(parent, tr("groups.edit") if group else tr("groups.new"))
+        self.group = group or Group(name=tr("groups.default_name", n=len(cfg.groups) + 1))
+        form = QFormLayout()
+        self.name = QLineEdit(self.group.name)
+        form.addRow(tr("lamp.name"), self.name)
+        self.body.addLayout(form)
+        self.members = QListWidget()
+        self.members.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.members.setMinimumHeight(160)
+        for l in cfg.lamps:
+            it = QListWidgetItem(l.name)
+            it.setData(Qt.ItemDataRole.UserRole, l.id)
+            it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            it.setCheckState(Qt.CheckState.Checked if l.id in self.group.members else Qt.CheckState.Unchecked)
+            self.members.addItem(it)
+        self.body.addWidget(QLabel(tr("lamps")))
+        self.body.addWidget(self.members)
+        self.warn = muted()
+        self.body.addWidget(self.warn)
+        self.add_buttons()
+
+    def _members(self):
+        return [self.members.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self.members.count())
+                if self.members.item(i).checkState() == Qt.CheckState.Checked]
+
+    def accept_if_valid(self):
+        if not self._members():
+            self.warn.setText(tr("routine.no_targets"))
+        else:
+            self.accept()
+
+    def value(self) -> Group:
+        self.group.name = self.name.text().strip() or self.group.name
+        self.group.members = self._members()
+        return self.group
+
+
+class GroupsDialog(_Dialog):
+    """Grupos de lâmpadas (ex.: Escritório, Corredor): aparecem no painel, nas rotinas e automações."""
+
+    def __init__(self, parent, win):
+        super().__init__(parent, tr("groups.title"))
+        self.win = win
+        self.body.addWidget(muted(tr("groups.note")))
+        self.list = QListWidget()
+        self.list.setMinimumHeight(200)
+        self.list.itemDoubleClicked.connect(lambda *_: self.edit())
+        self.body.addWidget(self.list)
+        row = QHBoxLayout()
+        row.addWidget(button(tr("btn.add"), self.add, primary=True))
+        row.addWidget(button(tr("btn.edit"), self.edit))
+        row.addWidget(button(tr("btn.remove"), self.remove, danger=True))
+        row.addStretch(1)
+        row.addWidget(button(tr("btn.close"), self.accept))
+        self.body.addLayout(row)
+        self.refresh()
+
+    @property
+    def cfg(self):
+        return self.win.store.config
+
+    def refresh(self):
+        self.list.clear()
+        for g in self.cfg.groups:
+            names = ", ".join(l.name for l in self.cfg.lamps if l.id in g.members)
+            it = QListWidgetItem(f"{g.name}\n{names or '—'}")
+            it.setData(Qt.ItemDataRole.UserRole, g.id)
+            self.list.addItem(it)
+
+    def _selected(self):
+        it = self.list.currentItem()
+        return self.cfg.group(it.data(Qt.ItemDataRole.UserRole)) if it else None
+
+    def add(self):
+        if not self.cfg.lamps:
+            return
+        d = GroupDialog(self, self.cfg)
+        if d.exec():
+            self.cfg.groups.append(d.value())
+            self.win.changed()
+            self.refresh()
+
+    def edit(self):
+        g = self._selected()
+        if g and GroupDialog(self, self.cfg, g).exec():
+            self.win.changed()
+            self.refresh()
+
+    def remove(self):
+        g = self._selected()
+        if g and confirm(self, tr("confirm.remove", name=g.name)):
+            self.cfg.groups.remove(g)
+            self.cfg.forget(g.id)
+            self.win.changed()
+            self.refresh()
 
 
 # --------------------------------------------------------------- cenas ---
@@ -781,7 +883,9 @@ class RoutineDialog(_Dialog):
         self.targets = QListWidget()
         self.targets.setMaximumHeight(130)
         self.targets.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        for key, label in [("*", tr("all_lamps"))] + [(l.id, l.name) for l in cfg.lamps]:
+        options = [("*", tr("all_lamps"))] + [(g.id, f"{tr('group')}: {g.name}") for g in cfg.groups] + \
+            [(l.id, l.name) for l in cfg.lamps]
+        for key, label in options:
             it = QListWidgetItem(label)
             it.setData(Qt.ItemDataRole.UserRole, key)
             it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
@@ -873,8 +977,7 @@ class RoutinesTab(QWidget):
             action = f"{tr('routine.scene')}: {sc.name if sc else '?'}"
         else:
             action = tr("routine.turn_on" if r.action == "on" else "routine.turn_off")
-        targets = tr("all_lamps") if "*" in r.targets else ", ".join(
-            l.name for l in cfg.resolve_targets(r.targets))
+        targets = cfg.target_name(r.targets, tr("all_lamps"))
         nxt = scheduler.next_occurrence(r, dt.datetime.now().astimezone(), cfg.settings.location)
         nxt_txt = tr("routine.next", t=nxt.strftime("%a %H:%M")) if nxt else tr("routine.never")
         return f"{r.name}\n{when} · {days_text(r.days)} · {action} · {targets} — {nxt_txt}"
@@ -1073,11 +1176,13 @@ class SettingsWindow(QWidget):
     languageChanged = Signal()
     themeChanged = Signal()
 
-    TABS = ["lamps", "scenes", "routines", "general"]
+    TABS = ["lamps", "scenes", "routines", "automations", "general"]
 
-    def __init__(self, store, service):
+    def __init__(self, store, service, automation):
         super().__init__()
-        self.store, self.service = store, service
+        from .automations import AutomationsTab
+
+        self.store, self.service, self.automation = store, service, automation
         self.setObjectName("settingsWindow")
         self.setWindowTitle(f"{APP_NAME} — {tr('settings')}")
         # Mica (Windows 11): a janela precisa nascer translúcida; sem Mica pintamos o fundo sólido
@@ -1085,7 +1190,7 @@ class SettingsWindow(QWidget):
         self._mica = False
         if self._mica_capable:
             self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.resize(700, 600)
+        self.resize(780, 640)
         v = QVBoxLayout(self)
         v.setContentsMargins(24, 22, 24, 20)
         v.setSpacing(12)
@@ -1096,10 +1201,12 @@ class SettingsWindow(QWidget):
         self.lamps = LampsTab(self)
         self.scenes = ScenesTab(self)
         self.routines = RoutinesTab(self)
+        self.automations = AutomationsTab(self)
         self.general = GeneralTab(self)
         self.tabs.addTab(self.lamps, tr("lamps"))
         self.tabs.addTab(self.scenes, tr("scenes"))
         self.tabs.addTab(self.routines, tr("routines"))
+        self.tabs.addTab(self.automations, tr("automations"))
         self.tabs.addTab(self.general, tr("general"))
         v.addWidget(self.tabs)
         self._apply_style()
@@ -1135,7 +1242,7 @@ class SettingsWindow(QWidget):
             overlay.show()
             overlay.raise_()
         self._apply_style()
-        for tab in (self.lamps, self.scenes, self.routines, self.general):
+        for tab in (self.lamps, self.scenes, self.routines, self.automations, self.general):
             tab.refresh()
         if overlay is not None:
             fx = QGraphicsOpacityEffect(overlay)
@@ -1162,6 +1269,6 @@ class SettingsWindow(QWidget):
 
     def changed(self):
         self.store.save()
-        for tab in (self.lamps, self.scenes, self.routines, self.general):
+        for tab in (self.lamps, self.scenes, self.routines, self.automations, self.general):
             tab.refresh()
         self.configChanged.emit()
