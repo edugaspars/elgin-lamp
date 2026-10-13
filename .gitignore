@@ -33,3 +33,8 @@ Thumbs.db
 
 # Versão gravada pelo build (calculada pelo Git)
 lampdesk/_version.py
+
+# Instruções do Claude Code: ficam só na máquina / no ambiente da nuvem, fora do repositório
+CLAUDE.md
+CLAUDE.local.md
+.claude/
