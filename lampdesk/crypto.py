@@ -15,9 +15,6 @@ from pathlib import Path
 _ENTROPY = b"lampdesk/config/v1"
 _KEYRING_SERVICE = "lampdesk"
 _KEYRING_USER = "config-key"
-# Identificadores do nome anterior do app: só para ler configurações já existentes.
-_LEGACY_ENTROPY = b"elgin-lamp/config/v1"
-_LEGACY_KEYRING_SERVICE = "elgin-lamp"
 
 
 class CryptoError(Exception):
@@ -59,15 +56,14 @@ if sys.platform == "win32":
     def decrypt(data: bytes) -> bytes:
         if not data.startswith(b"DPAPI1"):
             raise CryptoError("formato desconhecido")
-        for entropy in (_ENTROPY, _LEGACY_ENTROPY):  # o próximo save já grava no formato novo
-            src, ent, out = _blob(data[6:]), _blob(entropy), _DataBlob()
-            ok = _crypt32.CryptUnprotectData(
-                ctypes.byref(src), None, ctypes.byref(ent), None, None,
-                _CRYPTPROTECT_UI_FORBIDDEN, ctypes.byref(out),
-            )
-            if ok:
-                return _take(out)
-        raise CryptoError("CryptUnprotectData falhou (arquivo de outro usuário/PC?)")
+        src, ent, out = _blob(data[6:]), _blob(_ENTROPY), _DataBlob()
+        ok = _crypt32.CryptUnprotectData(
+            ctypes.byref(src), None, ctypes.byref(ent), None, None,
+            _CRYPTPROTECT_UI_FORBIDDEN, ctypes.byref(out),
+        )
+        if not ok:
+            raise CryptoError("CryptUnprotectData falhou (arquivo de outro usuário/PC?)")
+        return _take(out)
 
 # ------------------------------------------------------------ Linux/macOS ---
 else:
@@ -83,14 +79,6 @@ else:
             stored = keyring.get_password(_KEYRING_SERVICE, _KEYRING_USER)
             if stored:
                 return stored.encode()
-            legacy = keyring.get_password(_LEGACY_KEYRING_SERVICE, _KEYRING_USER)
-            if legacy:  # chave gravada com o nome anterior do app: passa para o nome novo
-                keyring.set_password(_KEYRING_SERVICE, _KEYRING_USER, legacy)
-                try:
-                    keyring.delete_password(_LEGACY_KEYRING_SERVICE, _KEYRING_USER)
-                except Exception:  # noqa: BLE001
-                    pass
-                return legacy.encode()
             # Sem chave no keyring: migra a do arquivo, se houver, ou cria nova.
             kf = _key_file()
             key = kf.read_bytes().strip() if kf.exists() else Fernet.generate_key()

@@ -1,5 +1,5 @@
 """Comunicação local com as lâmpadas (protocolo Tuya/Smart Life, usado por
-lâmpadas de várias marcas, como Elgin e Positivo).
+lâmpadas de dezenas de marcas; a lista de exemplos está no README).
 
 Nada aqui depende de Qt: dá para usar como biblioteca/script também.
 """
@@ -164,7 +164,7 @@ class TuyaBulb:
                                    dev.dpset["value_hexformat"])
 
     def values(self, kind: str, value, current: LampState) -> dict:
-        """DPs a enviar para um comando ("power", "brightness", "temperature", "color", "scene")."""
+        """DPs a enviar para um comando ("power", "brightness", "temperature", "color", "scene", "countdown")."""
         ds = self._device().dpset
         if kind == "power":
             out = {ds["switch"] or "1": bool(value)}
@@ -184,6 +184,8 @@ class TuyaBulb:
             out = {ds["switch"]: True, ds["mode"]: "colour", ds["colour"]: self._colour_hex(value, current.brightness)}
         elif kind == "scene":
             scene: Scene = value
+            if scene.mode in ("screen", "cover"):
+                raise LampError("cena reativa (tela/música) não vai direto para a lâmpada")
             if scene.mode == "colour" and ds["colour"]:
                 out = {ds["switch"]: True, ds["mode"]: "colour",
                        ds["colour"]: self._colour_hex(scene.color, scene.brightness)}
@@ -191,6 +193,12 @@ class TuyaBulb:
                 out = {ds["switch"]: True, ds["mode"]: "white", ds["brightness"]: self._scale(scene.brightness)}
                 if ds["colourtemp"]:
                     out[ds["colourtemp"]] = self._scale(scene.temperature, floor=False)
+        elif kind == "countdown":
+            # timer interno: a própria lâmpada desliga depois de N segundos (0 cancela),
+            # mesmo com o PC desligado
+            if not ds.get("timer"):
+                raise LampError("sem timer interno")
+            out = {ds["timer"]: max(0, min(86400, int(value)))}
         else:
             raise ValueError(kind)
         return {str(k): v for k, v in out.items() if k}
@@ -226,6 +234,7 @@ class FakeBulb:
         self.lamp = lamp
         self.detected_version = "3.3"
         rnd = random.Random(lamp.name)
+        self.countdown = 0
         self.state = LampState(
             online=True, is_on=rnd.random() > 0.4, mode=rnd.choice(["white", "colour"]),
             brightness=rnd.randint(30, 100), temperature=rnd.randint(0, 100),
@@ -258,6 +267,9 @@ class FakeBulb:
         self._lag()
         self.state.is_on, self.state.mode = True, "colour"
         self.state.color, self.state.brightness = tuple(rgb), brightness
+
+    def set_countdown(self, seconds):
+        self.countdown = int(seconds)
 
     def apply_scene(self, scene, current):
         if scene.mode == "colour":
@@ -322,6 +334,11 @@ class LiveBulb(threading.Thread):
     def refresh(self) -> None:
         self._want_status = True
         self._wake()
+
+    def pending(self) -> bool:
+        """Há comando ainda não enviado (usado para esperar antes de o PC desligar)."""
+        with self._lock:
+            return bool(self._queue) and self.tuya._dev is not None
 
     def stop(self) -> None:
         self._stop.set()
@@ -490,6 +507,9 @@ class FakeLiveBulb(threading.Thread):
     def refresh(self):
         self._q.put(("read", None, None))
 
+    def pending(self) -> bool:
+        return not self._q.empty()
+
     def stop(self):
         self._q.put(None)
 
@@ -510,6 +530,8 @@ class FakeLiveBulb(threading.Thread):
                 self.bulb.set_color(value, current.brightness)
             elif kind == "scene":
                 self.bulb.apply_scene(value, current)
+            elif kind == "countdown":
+                self.bulb.set_countdown(value)
             _notify(self.on_state, self.bulb.read())
 
 

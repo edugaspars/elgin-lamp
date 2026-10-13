@@ -30,6 +30,7 @@ def wait(qapp, cond, timeout=3.0):
 def app(qapp):
     from lampdesk.app import LampDeskApp
     a = LampDeskApp(qapp, demo=True)
+    a.store.config.settings.focus.schedule = False  # o horário de trabalho não interfere nos testes
     yield a
     a.service.shutdown()
     a.popup.hide()
@@ -93,14 +94,27 @@ def test_popup_repaints_when_only_the_colour_changes(qapp, app):
 
 
 def test_tile_value_fits_inside_the_card(qapp):
-    """"Desligado" no card Timer não pode encostar na borda direita (margem de 13 px dos dois lados)."""
+    """"Desligado" no card Timer não pode encostar na borda direita (margem de 13 px dos dois lados).
+
+    As larguras saem das métricas da própria fonte: no CI do Windows (offscreen) as letras medem bem
+    mais que no Linux, então um número fixo de pixels não serve para os dois.
+    """
     from PySide6.QtGui import QFont, QFontMetrics
+    from lampdesk.ui import theme
     from lampdesk.ui.widgets import fit_font
 
-    avail = 88 - 26  # largura típica do card no painel
-    font = fit_font("Desligado", avail, QFont.Weight.DemiBold)
+    bold = QFont.Weight.DemiBold
+
+    def advance(text, size):
+        return QFontMetrics(theme.font(size, bold)).horizontalAdvance(text)
+
+    # cabe a 12 px: escolhe 12 (ou maior, se também couber) e o texto fica dentro da margem
+    avail = advance("Desligado", 12) + 2
+    font = fit_font("Desligado", avail, bold)
+    assert font.pixelSize() >= 12
     assert QFontMetrics(font).horizontalAdvance("Desligado") <= avail
-    assert fit_font("100%", avail, QFont.Weight.DemiBold).pixelSize() == 14  # texto curto mantém o tamanho
+    assert fit_font("100%", advance("100%", 14) + 2, bold).pixelSize() == 14  # texto curto mantém o tamanho
+    assert fit_font("Desligado", 10, bold).pixelSize() == 11  # nada cabe: a menor (o card elide o resto)
 
 
 def test_sleep_timer(qapp, app):
@@ -176,3 +190,134 @@ def test_routine_runs(qapp, app):
     app.store.config.routines = [Routine("Agora", time=now.strftime("%H:%M"), action="off")]
     app.run_routines()
     assert wait(qapp, lambda: not app.service.any_on())
+
+
+def test_automations_tab_and_rule_dialogs(qapp, app):
+    from lampdesk.ui.automations import RuleDialog, describe_rule
+
+    cfg = app.store.config
+    assert len(cfg.rules) >= 9 and cfg.settings.rules_seeded  # exemplos criados na primeira abertura
+    app.open_settings("automations")
+    win = app.settings_window
+    assert win.tabs.currentIndex() == 3
+    assert win.automations.rules.list.count() == len(cfg.rules)
+    for r in list(cfg.rules):
+        d = RuleDialog(win, cfg, r, automation=app.automation)
+        before = (r.trigger, r.action, r.hotkey, r.apps, r.window_from)
+        d.value()
+        assert (r.trigger, r.action, r.hotkey, r.apps, r.window_from) == before  # editar sem mudar nada
+        assert describe_rule(cfg, r).startswith(r.name)
+        d.deleteLater()
+
+    win.automations.features.discord.setChecked(True)
+    assert cfg.settings.discord_mode
+    win.automations.features.circ.setChecked(True)
+    assert cfg.settings.circadian.enabled
+    win.automations.tabs.setCurrentIndex(2)
+    win.automations.diag.refresh()
+    assert win.automations.diag.values["locked"].text()
+
+
+def test_groups_in_panel_and_menus(qapp, app):
+    from PySide6.QtWidgets import QMenu
+    from lampdesk.storage import Group
+    from lampdesk.ui.tray import fill_automation_menu
+
+    cfg = app.store.config
+    ids = [l.id for l in cfg.lamps]
+    cfg.groups.append(Group("Escritório", ids[:2], id="grp"))
+    app.popup._select("grp")
+    assert app.popup.ids() == ids[:2]
+    assert app.popup.selector.value == "Escritório"
+    m = QMenu()
+    fill_automation_menu(m, app.automation, app.open_settings)
+    texts = [a.text() for a in m.actions()]
+    assert any("Discord" in t for t in texts)
+    app.automation.pomodoro.start()
+    m.clear()
+    fill_automation_menu(m, app.automation, app.open_settings)
+    assert any(":" in a.text() for a in m.actions())  # mostra o tempo restante
+    app.automation.pomodoro.stop()
+    app.tray.rebuild()
+
+
+def test_focus_button_in_panel(qapp, app):
+    from PySide6.QtCore import QRect
+    popup = app.popup
+    popup.show_at(QRect(600, 580, 20, 20))
+    assert not popup.focus.on
+    popup._toggle_focus()
+    assert app.automation.is_focus() and popup.focus.on
+    assert app.service.locked == set(app.service.ids("*"))
+    assert popup.status_text.text().startswith(tr_focus())
+    popup._toggle_focus()
+    assert not app.automation.is_focus() and not app.service.locked
+
+
+def tr_focus():
+    from lampdesk.i18n import tr
+    return tr("mode.focus")
+
+
+def test_room_prompt_and_panel_start(qapp, app):
+    from lampdesk.storage import Group
+    from lampdesk.ui.popup import Popup
+    cfg = app.store.config
+    ids = [l.id for l in cfg.lamps]
+    cfg.groups.append(Group("Escritório", ids[:1], id="office"))
+    app._ask_room()
+    d = app._room_dialog
+    assert d is not None
+    d.combo.set_value(["office"])
+    d.accept()
+    assert cfg.settings.room == ["office"] and cfg.settings.room_asked
+    assert app.popup.selection == "office"
+    app._ask_room()
+    assert app._room_dialog is None  # só pergunta uma vez
+    p = Popup(app.store, app.service, app.automation)  # ao abrir o app, o painel já mostra o ambiente
+    assert p.selection == "office"
+    p.deleteLater()
+    app.open_settings("automations")
+    assert app.settings_window.automations.room.value() == ["office"]
+
+
+def test_panel_shows_each_lamps_active_scene(qapp, app):
+    from PySide6.QtCore import QRect
+    from lampdesk.i18n import tr
+    cfg, svc, popup = app.store.config, app.service, app.popup
+    a, b, c = (l.id for l in cfg.lamps)
+    reading = next(s for s in cfg.scenes if s.mode == "white")
+    ambi = next(s for s in cfg.scenes if s.mode == "screen")
+    music = next(s for s in cfg.scenes if s.mode == "cover")
+    popup.show_at(QRect(600, 580, 20, 20))
+    svc.apply_scene([a], reading)
+    svc.apply_scene([b], ambi)
+    svc.apply_scene([c], music)
+    for lid, sc in ((a, reading), (b, ambi), (c, music)):
+        popup._select(lid)
+        assert popup.scene_pill.text() == sc.name     # trocou de lâmpada: mostra a cena dela
+    popup._select("*")
+    assert popup.scene_pill.text() == tr("scenes")    # cada uma numa cena
+    svc.set_brightness([a], 30)                       # mexeu à mão: deixa de ser a cena
+    popup._select(a)
+    assert popup.scene_pill.text() == tr("scenes")
+    svc.set_power([c], False)
+    popup._select(c)
+    assert popup.scene_pill.text() == music.name      # desligar não esquece a cena
+
+
+def test_scene_mark_survives_blink_and_lasting_rules(qapp, app):
+    cfg, svc, auto = app.store.config, app.service, app.automation
+    a = cfg.lamps[0].id
+    reading = next(s for s in cfg.scenes if s.mode == "white")
+    night = next(s for s in cfg.scenes if s.mode == "colour")
+    assert wait(qapp, lambda: svc.state(a).online)
+    svc.apply_scene([a], reading)
+    assert wait(qapp, lambda: svc.state(a).is_on)
+    auto.stack.push("teste", 50, [a], night)          # regra que dura aplica outra cena
+    assert svc.scene_mark(a) == night.id
+    auto.stack.pop("teste")                           # terminou: luz e cena de antes
+    assert svc.scene_mark(a) == reading.id
+    auto.stack.push("blink:x", 100, [a], None)        # piscada (visual interno)
+    auto.stack.pop("blink:x")
+    assert svc.scene_mark(a) == reading.id

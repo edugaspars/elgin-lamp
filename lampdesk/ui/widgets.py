@@ -218,6 +218,32 @@ class PowerButton(_HoverButton):
         icons.paint(p, "power", QRectF(r.center().x() - s / 2, r.center().y() - s / 2, s, s), glyph, 2.0)
 
 
+class ToggleCircle(_HoverButton):
+    """Botão redondo que fica "aceso" (invertido, como o card ativo) quando ligado: modo foco."""
+
+    def __init__(self, icon_name: str, size: int = 46, parent=None):
+        super().__init__(parent)
+        self.icon_name = icon_name
+        self.setFixedSize(size, size)
+        self.on = False
+        self._on = Fader(self, 0, 220)
+
+    def set_on(self, on: bool):
+        self.on = on
+        self._on.to(1 if on else 0)
+        self.update()
+
+    def paintEvent(self, _):
+        p = self._begin()
+        r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        t = self._on.value
+        paint_glass(p, ellipse(r), r, mix(self._fill(), theme.INVERSE, t),
+                    mix(theme.CARD_BORDER, with_alpha(theme.INVERSE, 0.0), t))
+        s = r.width() * 0.46
+        icons.paint(p, self.icon_name, QRectF(r.center().x() - s / 2, r.center().y() - s / 2, s, s),
+                    mix(theme.TEXT, theme.INVERSE_TEXT, t), 1.9)
+
+
 class Pill(_HoverButton):
     """Cápsula 'Cenas ▾'."""
 

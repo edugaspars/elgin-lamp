@@ -16,10 +16,10 @@ def test_encrypt_roundtrip():
 
 def test_config_file_never_contains_plaintext(tmp_path):
     store = Store(tmp_path / "config.dat")
-    store.config.lamps.append(Lamp("Sala", "bf1234567890abcdef", "192.168.0.10", "0123456789abcdef"))
+    store.config.lamps.append(Lamp("Sala", "bf1234567890abcdef", "192.0.2.10", "0123456789abcdef"))
     store.save()
     raw = (tmp_path / "config.dat").read_bytes()
-    for secret in (b"192.168.0.10", b"0123456789abcdef", b"bf1234567890abcdef", b"Sala"):
+    for secret in (b"192.0.2.10", b"0123456789abcdef", b"bf1234567890abcdef", b"Sala"):
         assert secret not in raw
 
 
@@ -37,18 +37,18 @@ def test_appearance_settings(tmp_path):
 
 def test_store_roundtrip(tmp_path):
     store = Store(tmp_path / "config.dat")
-    store.config.lamps.append(Lamp("Sala", "id1", "192.168.0.10", "k" * 16, version="3.3"))
+    store.config.lamps.append(Lamp("Sala", "id1", "192.0.2.10", "k" * 16, version="3.3"))
     store.config.scenes = default_scenes(tr)
     store.config.routines.append(Routine("Acordar", time="06:30", days=[0, 1, 2, 3, 4]))
     store.config.settings.location = Location("São Paulo - SP", -23.55, -46.63)
     store.save()
 
     loaded = Store(tmp_path / "config.dat").load()
-    assert loaded.lamps[0].ip == "192.168.0.10"
+    assert loaded.lamps[0].ip == "192.0.2.10"
     assert loaded.lamps[0].version == "3.3"
     assert loaded.routines[0].days == [0, 1, 2, 3, 4]
     assert loaded.settings.location.is_set
-    assert len(loaded.scenes) == 5
+    assert len(loaded.scenes) == len(default_scenes(tr))
 
 
 def test_unreadable_config_is_backed_up(tmp_path):
@@ -78,20 +78,3 @@ def test_mask_hides_most_of_value():
     assert crypto.mask("0123456789abcdef").endswith("cdef")
     assert "0123" not in crypto.mask("0123456789abcdef")
     assert json.dumps(crypto.mask("")) == '""'
-
-
-def test_legacy_data_folder_is_moved(tmp_path, monkeypatch):
-    """Quem usava o app com o nome anterior não perde a configuração."""
-    from lampdesk import paths
-
-    monkeypatch.delenv("LAMPDESK_HOME", raising=False)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    monkeypatch.setenv("APPDATA", str(tmp_path))
-    monkeypatch.setattr(paths.Path, "home", classmethod(lambda cls: tmp_path))
-    legacy = paths._default_dir(paths.LEGACY_APP_ID, paths.LEGACY_XDG_NAME)
-    legacy.mkdir(parents=True)
-    (legacy / "config.dat").write_bytes(b"dados")
-
-    new = paths.data_dir()
-    assert (new / "config.dat").read_bytes() == b"dados"
-    assert not legacy.exists()

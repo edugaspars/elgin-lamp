@@ -10,8 +10,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-# IPs que aparecem de propósito na documentação e nos testes.
-ALLOWED_IPS = {"192.168.0.10", "127.0.0.1", "0.0.0.0"}
+# IPs de rede local que podem aparecer (exemplos e testes usam a faixa de documentação 192.0.2.x,
+# que nem é de rede local).
+ALLOWED_IPS = {"127.0.0.1", "0.0.0.0"}
 
 FORBIDDEN_FILES = {"devices.json", "tinytuya.json", "snapshot.json", "tuya-raw.json", ".env", ".key"}
 FORBIDDEN_SUFFIXES = {".dat"}
@@ -54,7 +55,7 @@ def main() -> int:
         print("Possível vazamento de dados (commit bloqueado):")
         for p in problems:
             print("  " + p)
-        print("\nUse 192.168.0.10 nos exemplos. Seus dados reais ficam só no app (%APPDATA%).")
+        print("\nUse 192.0.2.x (faixa de documentação) nos exemplos. Seus dados reais ficam só no app (%APPDATA%).")
         return 1
     return 0
 

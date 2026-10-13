@@ -1,5 +1,6 @@
 """Ponte entre a interface (Qt) e as lâmpadas: conexões ao vivo e timers."""
 
+import contextlib
 import logging
 import time
 from dataclasses import replace
@@ -8,7 +9,7 @@ from typing import Dict, Iterable, List, Optional
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 
 from .lamp import FakeLiveBulb, LampState, LiveBulb
-from .storage import Scene, Store
+from .storage import REACTIVE_MODES, Scene, Store
 
 log = logging.getLogger(__name__)
 
@@ -17,6 +18,8 @@ class LampService(QObject):
     stateChanged = Signal(str, object)      # lamp_id, LampState
     versionDetected = Signal(str, str)      # lamp_id, versão
     timersChanged = Signal()
+    reactiveScene = Signal(list, object)    # cena reativa (tela/capa do álbum): quem pinta são as automações
+    userCommand = Signal(list, str)         # ids e tipo de comando mexidos à mão (painel, bandeja, atalhos)
 
     # usados pelas threads das lâmpadas; o Qt entrega na thread da interface
     _bulbState = Signal(str, object)
@@ -30,6 +33,10 @@ class LampService(QObject):
         self._signature: Dict[str, tuple] = {}
         self._states: Dict[str, LampState] = {}
         self._timers: Dict[str, tuple] = {}  # chave -> (deadline, [ids])
+        self._auto = 0  # > 0 enquanto as automações mandam comandos
+        self._bypass = 0
+        self.locked: set = set()  # modo foco: automações não mexem nessas lâmpadas
+        self._scenes: Dict[str, str] = {}  # lid -> id da cena ativa (a que o painel mostra)
 
         self._bulbState.connect(self._on_bulb_state, Qt.ConnectionType.QueuedConnection)
         self._bulbVersion.connect(self.versionDetected, Qt.ConnectionType.QueuedConnection)
@@ -102,6 +109,30 @@ class LampService(QObject):
         for bulb in self._bulbs.values():
             bulb.stop()
 
+    def flush(self, timeout: float = 2.0) -> bool:
+        """Espera os comandos na fila saírem (antes de o PC desligar). True se deu tempo."""
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            if not any(getattr(b, "pending", lambda: False)() for b in self._bulbs.values()):
+                return True
+            time.sleep(0.03)
+        return False
+
+    @contextlib.contextmanager
+    def automated(self, bypass_lock: bool = False):
+        """Comandos dentro deste bloco vêm das automações (não contam como mudança manual).
+
+        Lâmpadas em `locked` (modo foco) ignoram esses comandos, a não ser com `bypass_lock`
+        (o próprio modo foco e os avisos do pomodoro).
+        """
+        self._auto += 1
+        self._bypass += 1 if bypass_lock else 0
+        try:
+            yield
+        finally:
+            self._auto -= 1
+            self._bypass -= 1 if bypass_lock else 0
+
     # ------------------------------------------------------------- comandos ---
     def refresh(self, ids: Optional[Iterable[str]] = None) -> None:
         for lid in ids if ids is not None else list(self._bulbs):
@@ -125,14 +156,68 @@ class LampService(QObject):
         rgb = tuple(int(c) for c in rgb)
         self._apply(ids, "color", rgb, lambda s: replace(s, is_on=True, mode="colour", color=rgb))
 
+    def scene_of(self, ids) -> Optional[str]:
+        """Id da cena ativa nessas lâmpadas (None se não há cena ou se cada uma está numa)."""
+        found = {self._scenes.get(lid) for lid in ids}
+        return found.pop() if len(found) == 1 else None
+
+    def scene_mark(self, lid: str) -> Optional[str]:
+        return self._scenes.get(lid)
+
+    def set_scene_mark(self, lid: str, scene_id: Optional[str]) -> None:
+        """Usado pelas camadas das automações: ao terminar, a cena que estava volta junto com a luz."""
+        if scene_id:
+            self._scenes[lid] = scene_id
+        else:
+            self._scenes.pop(lid, None)
+
+    def _mark_scene(self, ids, scene: Scene) -> None:
+        # visuais internos das automações (piscar, cor da tela…) não são cenas do usuário
+        if self.store.config.scene(scene.id) is not None:
+            for lid in ids:
+                self._scenes[lid] = scene.id
+
     def apply_scene(self, ids, scene: Scene) -> None:
+        if scene.mode in REACTIVE_MODES:  # cena reativa: não vai para a lâmpada, as automações acompanham
+            ids = list(ids)
+            if self._auto and not self._bypass and self.locked:
+                ids = [i for i in ids if i not in self.locked]
+            if not self._auto:
+                self.userCommand.emit(ids, "scene")
+            self._mark_scene(ids, scene)
+            self.reactiveScene.emit(ids, scene)
+            for lid in ids:
+                self.stateChanged.emit(lid, self.state(lid))  # o painel mostra a cena na hora
+            return
+
         def optimistic(s):
             if scene.mode == "colour":
                 return replace(s, is_on=True, mode="colour", color=tuple(scene.color), brightness=scene.brightness)
             return replace(s, is_on=True, mode="white", brightness=scene.brightness, temperature=scene.temperature)
         self._apply(ids, "scene", scene, optimistic)
 
+    def apply_look(self, ids, look: Optional[Scene]) -> None:
+        """Aplica um "visual" (cena) ou desliga (None)."""
+        if look is None:
+            self.set_power(ids, False)
+        else:
+            self.apply_scene(ids, look)
+
+    def countdown(self, ids, seconds: int) -> None:
+        """Timer interno da lâmpada: desliga sozinha depois de N segundos, mesmo com o PC desligado."""
+        self._apply(ids, "countdown", int(seconds), lambda s: s)
+
     def _apply(self, ids, kind, value, optimistic) -> None:
+        ids = list(ids)
+        if self._auto and not self._bypass and self.locked and not (kind == "countdown" and not value):
+            ids = [i for i in ids if i not in self.locked]  # cancelar o timer (0) sempre passa
+        if not self._auto and kind != "countdown":
+            self.userCommand.emit(ids, kind)
+            if kind in ("brightness", "temperature", "color"):
+                for lid in ids:  # mexeu à mão: já não é mais a cena
+                    self._scenes.pop(lid, None)
+        if kind == "scene":
+            self._mark_scene(ids, value)
         for lid in ids:
             bulb = self._bulbs.get(lid)
             if bulb is None:

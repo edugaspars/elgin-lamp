@@ -1,5 +1,6 @@
 """Ícone da bandeja e seu menu de clique direito."""
 
+import datetime as dt
 from functools import lru_cache
 
 from PySide6.QtCore import QPointF, QRectF, Qt
@@ -42,6 +43,53 @@ def style_menu(menu: QMenu) -> None:
     menu.setStyleSheet(theme.dialog_qss())
 
 
+def fill_automation_menu(m: QMenu, auto, open_settings, parent=None) -> None:
+    """Atalhos das automações (painel e bandeja): modos, pomodoro e pausa das rotinas."""
+    s = auto.store.config.settings
+
+    def check(text, on, slot):
+        a = QAction(text, m, checkable=True, checked=on)
+        a.triggered.connect(slot)
+        m.addAction(a)
+
+    check(tr("mode.focus"), s.focus.active, auto.set_focus)
+    m.addSeparator()
+    check(tr("mode.discord"), s.discord_mode, auto.set_discord)
+    check(tr("mode.circadian"), s.circadian.enabled, auto.set_circadian)
+    # cenas que acompanham a tela / a música, no ambiente deste PC
+    check(tr("menu.ambilight"), auto.reactive_on("screen"), lambda _=False: auto.toggle_reactive("screen"))
+    check(tr("menu.music"), auto.reactive_on("cover"), lambda _=False: auto.toggle_reactive("cover"))
+    m.addSeparator()
+    pomo = auto.pomodoro
+    if pomo.running():
+        from .popup import fmt_remaining
+        label = tr("pomodoro.stop", t=f"{tr(f'pomodoro.{pomo.phase}')} {fmt_remaining(pomo.remaining())}")
+        m.addAction(label).triggered.connect(pomo.stop)
+        m.addAction(tr("pomodoro.skip")).triggered.connect(pomo.advance)
+    else:
+        m.addAction(tr("pomodoro.start")).triggered.connect(pomo.start)
+    m.addSeparator()
+    if auto.is_paused():
+        until = dt.date.fromisoformat(s.pause_until).strftime("%d/%m")
+        m.addAction(tr("pause.resume", d=until)).triggered.connect(lambda: auto.set_pause(""))
+    else:
+        sub = m.addMenu(tr("pause.menu"))
+        style_menu(sub)
+        today = dt.date.today()
+        for key, days in (("pause.today", 0), ("pause.tomorrow", 1), ("pause.week", 6)):
+            sub.addAction(tr(key)).triggered.connect(
+                lambda _=False, d=days: auto.set_pause((today + dt.timedelta(days=d)).isoformat()))
+
+        def choose():
+            from .automations import PauseDialog
+            d = PauseDialog(parent, s.pause_until)
+            if d.exec():
+                auto.set_pause(d.value())
+        sub.addAction(tr("pause.pick")).triggered.connect(choose)
+    m.addSeparator()
+    m.addAction(tr("automations.more")).triggered.connect(lambda: open_settings("automations"))
+
+
 class Tray(QSystemTrayIcon):
     def __init__(self, app):
         super().__init__(tray_icon(False))
@@ -69,7 +117,11 @@ class Tray(QSystemTrayIcon):
         self.setIcon(tray_icon(on))
         lamps = self.app.store.config.lamps
         n_on = sum(1 for l in lamps if svc.state(l.id).is_on and svc.state(l.id).online)
-        self.setToolTip(f"{tr('app.tooltip')} — {n_on}/{len(lamps)}" if lamps else tr("app.tooltip"))
+        tip = f"{tr('app.tooltip')} — {n_on}/{len(lamps)}" if lamps else tr("app.tooltip")
+        pomo = self.app.automation.pomodoro
+        if pomo.running():
+            tip += f"\n{tr(f'pomodoro.{pomo.phase}')}"
+        self.setToolTip(tip)
 
     def rebuild(self):
         m = self.menu
@@ -95,6 +147,9 @@ class Tray(QSystemTrayIcon):
                     sub.addAction(sc.name).triggered.connect(
                         lambda _=False, s=sc: svc.apply_scene(svc.ids("*"), s))
         m.addSeparator()
+        sub = m.addMenu(tr("automations"))
+        style_menu(sub)
+        fill_automation_menu(sub, self.app.automation, self.app.open_settings)
         m.addAction(tr("routines")).triggered.connect(lambda: self.app.open_settings("routines"))
         m.addAction(tr("settings")).triggered.connect(lambda: self.app.open_settings("lamps"))
         m.addSeparator()

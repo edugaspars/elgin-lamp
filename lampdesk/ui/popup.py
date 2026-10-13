@@ -11,8 +11,9 @@ from PySide6.QtWidgets import (QApplication, QColorDialog, QHBoxLayout, QLabel, 
 from ..i18n import tr
 from ..lamp import LampState, display_rgb, rgb_from_hue
 from . import glass, icons, theme
-from .tray import style_menu
-from .widgets import BigSlider, BulbView, CircleButton, Fader, HeaderSelector, IconButton, Pill, PowerButton, Tile
+from .tray import fill_automation_menu, style_menu
+from .widgets import (BigSlider, BulbView, CircleButton, Fader, HeaderSelector, IconButton, Pill, PowerButton, Tile,
+                      ToggleCircle)
 
 WIDTH = 400
 SHADOW = 22
@@ -37,17 +38,20 @@ def fmt_remaining(sec: int) -> str:
 class Popup(QWidget):
     openSettings = Signal(str)
 
-    def __init__(self, store, service, parent=None):
+    def __init__(self, store, service, automation=None, parent=None):
         super().__init__(parent)
         self.store = store
         self.service = service
-        self.selection = store.config.settings.last_selected or "*"
+        self.automation = automation
+        room = store.config.settings.room
+        # abre no ambiente deste PC; sem ambiente escolhido, na última seleção
+        self.selection = room[0] if room != ["*"] else (store.config.settings.last_selected or "*")
         self.slider_mode = "brightness"
-        self.last_scene = ""
         self._arrow_up = False
         self._arrow_x = WIDTH / 2
         self._hidden_at = 0.0
         self._suffix = ""
+        self._status = ""
         self._backdrop = None
         self._glow = QColor(255, 190, 110)
         self._glow_level = Fader(self, 0, 420)
@@ -74,6 +78,8 @@ class Popup(QWidget):
         self._build()
         # métodos (e não lambdas): o Qt desconecta sozinho quando o painel é destruído
         service.stateChanged.connect(self._on_state)
+        if automation is not None:
+            automation.changed.connect(self._on_state)  # modo foco ligado pelo horário ou pela bandeja
         service.timersChanged.connect(self._update_timer_tile)
         QApplication.instance().applicationStateChanged.connect(self._on_app_state)
 
@@ -97,8 +103,14 @@ class Popup(QWidget):
         self.selector.clicked.connect(self._choose_lamp)
         self.power = PowerButton()
         self.power.clicked.connect(self._toggle_power)
+        self.focus = ToggleCircle("focus")
+        self.focus.setToolTip(tr("focus.tooltip"))
+        self.focus.clicked.connect(self._toggle_focus)
         head.addWidget(self.selector)
         head.addStretch(1)
+        if self.automation is not None:
+            head.addWidget(self.focus)
+            head.addSpacing(8)
         head.addWidget(self.power)
         v.addLayout(head)
 
@@ -206,15 +218,31 @@ class Popup(QWidget):
         self.status_text = QLabel()
         self.status_text.setFont(theme.font(12))
         self.status_text.setStyleSheet(f"color: {theme.css(theme.MUTED)};")
+        self.auto_btn = IconButton("bolt")
+        self.auto_btn.setToolTip(tr("automations"))
+        self.auto_btn.clicked.connect(self._automation_menu)
         routines = IconButton("clock")
         routines.setToolTip(tr("routines"))
         routines.clicked.connect(lambda: self.openSettings.emit("routines"))
         settings = IconButton("sliders")
         settings.setToolTip(tr("settings"))
         settings.clicked.connect(lambda: self.openSettings.emit("lamps"))
+        # o que está controlando a luz agora (Ambilight, Música, modo jogo…), com ✕ para parar
+        self.controller = QPushButton()
+        self.controller.setProperty("chip", True)
+        self.controller.setFixedHeight(24)
+        self.controller.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.controller.setToolTip(tr("controller.stop"))
+        self.controller.clicked.connect(self._stop_controller)
+        self.controller.hide()
+        self._controller_key = None
         f.addWidget(self.status_icon)
         f.addWidget(self.status_text)
+        f.addSpacing(4)
+        f.addWidget(self.controller)
         f.addStretch(1)
+        if self.automation is not None:
+            f.addWidget(self.auto_btn)
         f.addWidget(routines)
         f.addWidget(settings)
         return f
@@ -241,16 +269,23 @@ class Popup(QWidget):
         self.stack.setCurrentIndex(page)
         if not lamps:
             return
-        if self.selection != "*" and not self.store.config.lamp(self.selection):
+        cfg = self.store.config
+        if self.selection != "*" and not (cfg.lamp(self.selection) or cfg.group(self.selection)):
             self.selection = "*"
 
-        name = tr("all_lamps") if self.selection == "*" else self.store.config.lamp(self.selection).name
-        self.selector.set_texts(tr("lamp") if self.selection != "*" else tr("lamps"), name)
+        if self.selection == "*":
+            self.selector.set_texts(tr("lamps"), tr("all_lamps"))
+        elif cfg.group(self.selection):
+            self.selector.set_texts(tr("group"), cfg.group(self.selection).name)
+        else:
+            self.selector.set_texts(tr("lamp"), cfg.lamp(self.selection).name)
 
         s = self._state()
         accent = QColor(*display_rgb(s))
         on = s.is_on and s.online
         self.power.set_state(on, accent)
+        if self.automation is not None:
+            self.focus.set_on(self.automation.is_focus())
         self.bulb.set_state(on, accent, s.brightness)
         if accent != self._glow:
             self._glow = accent
@@ -285,7 +320,10 @@ class Popup(QWidget):
             t.set_active(self.slider_mode == mode)
         self._update_timer_tile()
 
-        self.scene_pill.setText(self.last_scene or tr("scenes"))
+        self._update_controller()
+        sid = self.service.scene_of(self.ids())
+        sc = self.store.config.scene(sid) if sid else None
+        self.scene_pill.setText(sc.name if sc else tr("scenes"))
         self.scene_pill.updateGeometry()
 
         states = [self.service.state(i) for i in self.ids()]
@@ -298,7 +336,8 @@ class Popup(QWidget):
         else:
             text, ic, col = tr("status.connecting"), "shield", theme.DIM
         self.status_icon.setPixmap(icons.pixmap(ic, 15, col))
-        self.status_text.setText(text)
+        self._status = text
+        self.status_text.setText(self._status_line())
         err = next((st.error for st in states if st.error), "")
         self.status_text.setToolTip(err)
         self._root.activate()
@@ -315,6 +354,15 @@ class Popup(QWidget):
     def _update_timer_tile(self):
         rem = self.service.timer_remaining(self.selection)
         self.t_timer.set_value(fmt_remaining(rem) if rem is not None else tr("off"))
+        self.status_text.setText(self._status_line())
+
+    def _status_line(self) -> str:
+        pomo = self.automation.pomodoro if self.automation is not None else None
+        if pomo is not None and pomo.running():
+            return f"{tr(f'pomodoro.{pomo.phase}')} · {fmt_remaining(pomo.remaining())}"
+        if self.automation is not None and self.automation.is_focus():
+            return f"{tr('mode.focus')} · {self._status}"
+        return self._status
 
     # ------------------------------------------------------------- ações ---
     def _step(self):
@@ -332,10 +380,26 @@ class Popup(QWidget):
         c = QColorDialog.getColor(QColor(*s.color), self, tr("pick_color"))
         if c.isValid():
             self.service.set_color(self.ids(), (c.red(), c.green(), c.blue()))
-            self.last_scene = ""
 
     def _toggle_power(self):
         self.service.toggle(self.ids())
+
+    def _update_controller(self):
+        info = self.automation.controller(self.ids()) if self.automation is not None else None
+        self._controller_key = info[0] if info else None
+        if info:
+            name = info[1] if len(info[1]) <= 22 else info[1][:21] + "…"
+            self.controller.setText(f"{name}  ✕")
+        self.controller.setVisible(bool(info))
+
+    def _stop_controller(self):
+        if self._controller_key:
+            self.automation.stop(self._controller_key)
+        self.update_view()
+
+    def _toggle_focus(self):
+        self.automation.set_focus(not self.automation.is_focus())
+        self.update_view()
 
     def _set_big(self, v):
         text = f"{v}{self._suffix}"
@@ -360,7 +424,6 @@ class Popup(QWidget):
             self.service.set_temperature(ids, v)
         else:
             self.service.set_color(ids, rgb_from_hue(v))
-        self.last_scene = ""
 
     def _menu(self):
         m = QMenu(self)
@@ -370,15 +433,17 @@ class Popup(QWidget):
     def _choose_lamp(self):
         m = self._menu()
         group = QActionGroup(m)
-        options = [("*", tr("all_lamps"))] + [(l.id, l.name) for l in self.store.config.lamps]
+        cfg = self.store.config
+        options = [("*", tr("all_lamps"))] + [(g.id, g.name) for g in cfg.groups] + \
+            [(l.id, l.name) for l in cfg.lamps]
         for key, label in options:
-            st = None if key == "*" else self.service.state(key)
+            st = self.service.state(key) if cfg.lamp(key) else None
             suffix = "" if st is None else ("  ●" if st.online and st.is_on else ("  ○" if st.online else "  ⚠"))
             a = QAction(label + suffix, m, checkable=True, checked=key == self.selection)
             a.triggered.connect(lambda _=False, k=key: self._select(k))
             group.addAction(a)
             m.addAction(a)
-            if key == "*":
+            if key == "*" or (cfg.groups and key == cfg.groups[-1].id):
                 m.addSeparator()
         m.exec(self.selector.mapToGlobal(QPoint(0, self.selector.height() + 4)))
 
@@ -388,6 +453,11 @@ class Popup(QWidget):
         self.store.save()
         self.service.refresh(self.ids())
         self.update_view()
+
+    def _automation_menu(self):
+        m = self._menu()
+        fill_automation_menu(m, self.automation, self.openSettings.emit, self)
+        m.exec(self.auto_btn.mapToGlobal(QPoint(0, self.auto_btn.height() + 4)))
 
     def _choose_scene(self):
         m = self._menu()
@@ -401,7 +471,6 @@ class Popup(QWidget):
 
     def _apply_scene(self, scene):
         self.service.apply_scene(self.ids(), scene)
-        self.last_scene = scene.name
         self.update_view()
 
     def _choose_timer(self):
