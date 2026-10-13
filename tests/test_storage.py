@@ -48,7 +48,7 @@ def test_store_roundtrip(tmp_path):
     assert loaded.lamps[0].version == "3.3"
     assert loaded.routines[0].days == [0, 1, 2, 3, 4]
     assert loaded.settings.location.is_set
-    assert len(loaded.scenes) == 5
+    assert len(loaded.scenes) == len(default_scenes(tr))
 
 
 def test_unreadable_config_is_backed_up(tmp_path):

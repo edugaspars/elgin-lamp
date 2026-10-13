@@ -15,6 +15,7 @@ from .paths import config_file
 log = logging.getLogger(__name__)
 
 PROTOCOL_VERSIONS = ["auto", "3.3", "3.4", "3.5", "3.1"]
+REACTIVE_MODES = ("screen", "cover")  # cenas que acompanham a tela ou a música (ver automation)
 
 
 def new_id() -> str:
@@ -34,7 +35,7 @@ class Lamp:
 @dataclass
 class Scene:
     name: str
-    mode: str = "white"           # "white" | "colour" | "screen" (reativa: segue a tela, ver automation)
+    mode: str = "white"           # "white" | "colour" | reativas: "screen" (tela) e "cover" (capa do álbum)
     brightness: int = 100         # 1..100
     temperature: int = 50         # 0 (quente) .. 100 (frio)
     color: List[int] = field(default_factory=lambda: [255, 160, 60])
@@ -266,6 +267,7 @@ def default_scenes(tr) -> List[Scene]:
         Scene(tr("scene.focus"), "white", 100, 100),
         Scene(tr("scene.night"), "colour", 10, 0, [255, 120, 30]),
         Scene(tr("scene.ambilight"), "screen", 100, 50),
+        Scene(tr("scene.music"), "cover", 100, 50),
     ]
 
 

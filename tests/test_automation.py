@@ -499,3 +499,33 @@ def test_upgrade_movie_scene_to_ambilight(qapp):
     assert upgrade_rules(cfg)
     assert cfg.scenes[0].mode == "screen" and cfg.scenes[0].name == tr("scene.ambilight")
     assert cfg.scenes[1].mode == "colour"
+    assert sum(sc.mode == "cover" for sc in cfg.scenes) == 1  # cena Música adicionada uma vez
+    assert not upgrade_rules(cfg)
+
+
+def test_music_scene_follows_the_album_cover(env):
+    qapp, store, svc, auto = env
+    from lampdesk.automation import COVER_SCENE
+    from lampdesk.storage import Scene
+    music = Scene("Música", "cover", 70, 50)
+    svc.apply_scene(["a"], music)                         # escolhida no painel, nada tocando ainda
+    assert COVER_SCENE in auto._cover_layers and auto._cover_timer.isActive()
+    wait(qapp, lambda: False, 0.1)
+    assert svc.state("a").mode == "white" and svc.state("a").brightness == 40
+    auto._on_cover(("playing", "A - x", "capa-a", (255, 0, 120)))
+    assert wait(qapp, lambda: svc.state("a").mode == "colour" and svc.state("a").brightness == 70)
+    for _ in range(2):
+        auto._on_cover(("paused", "", None, None))         # pausou: volta ao que era
+    assert wait(qapp, lambda: svc.state("a").mode == "white" and svc.state("a").brightness == 40)
+    auto._on_cover(("playing", "A - x", "capa-b", (0, 200, 255)))  # play: a cor volta, cena continua
+    assert wait(qapp, lambda: svc.state("a").mode == "colour")
+    svc.set_brightness(["a"], 30)                        # mexeu à mão: a cena para
+    assert COVER_SCENE not in auto._cover_layers and not auto._cover_timer.isActive()
+
+
+def test_music_scene_uses_current_track_immediately(env):
+    qapp, store, svc, auto = env
+    from lampdesk.storage import Scene
+    auto._cover_rgb = (255, 140, 0)                      # já estava tocando
+    svc.apply_scene(["b"], Scene("Música", "cover", 100, 50))
+    assert wait(qapp, lambda: svc.state("b").mode == "colour" and svc.state("b").brightness == 100)

@@ -49,6 +49,13 @@ STRINGS = {
         "scene.night": "Noite",
         "scene.movie": "Cinema",
         "scene.ambilight": "Ambilight",
+        "scene.music": "Música",
+        "scene.mode_cover": "Música (capa do álbum)",
+        "scene.mode_screen_short": "Tela",
+        "scene.mode_cover_short": "Música",
+        "scene.cover_note": "A luz segue a cor da capa do que está tocando (Spotify, YouTube e outros players do "
+                            "Windows). Ao pausar, volta ao que era; ao dar play, a cor volta. Fica assim até você "
+                            "escolher outra cena ou mexer na luz.",
         "scene.mode_screen": "Tela (ambilight)",
         "scene.screen_note": "A luz segue o monitor principal: colorido a 100%, branco a 25% e quase apagada (1%) "
                              "em cenas escuras. Fica assim até você escolher outra cena ou mexer na luz.",
@@ -399,6 +406,15 @@ STRINGS = {
         "scene.movie": "Movie",
         "scene.ambilight": "Ambilight",
         "scene.mode_screen": "Screen (ambilight)",
+        "scene.ambilight": "Ambilight",
+        "scene.mode_screen": "Screen (ambilight)",
+        "scene.music": "Music",
+        "scene.mode_cover": "Music (album cover)",
+        "scene.mode_screen_short": "Screen",
+        "scene.mode_cover_short": "Music",
+        "scene.cover_note": "The light follows the cover color of what's playing (Spotify, YouTube and other Windows "
+                            "players). When paused, it goes back to how it was; on play, the color returns. It "
+                            "stays this way until you pick another scene or change the light.",
         "scene.screen_note": "The light follows the main monitor: colors at 100%, white at 25% and almost off (1%) "
                              "in dark scenes. It stays this way until you pick another scene or change the light.",
         "btn.add": "Add",

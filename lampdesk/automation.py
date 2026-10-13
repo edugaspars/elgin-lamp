@@ -19,12 +19,13 @@ from PySide6.QtCore import QAbstractNativeEventFilter, QObject, Qt, QTimer, Sign
 from . import rules as R
 from . import scheduler, winsys
 from .lamp import LampState
-from .storage import Rule, Scene
+from .storage import REACTIVE_MODES, Rule, Scene
 
 log = logging.getLogger(__name__)
 
 PRIO_ALERT, PRIO_FOCUS, PRIO_AWAY, PRIO_MODE, PRIO_MUSIC, PRIO_SCENE = 100, 90, 60, 40, 30, 20
 SCREEN_SCENE = "scene:screen"  # camada da cena reativa Ambilight escolhida no painel
+COVER_SCENE = "scene:cover"    # camada da cena reativa Música (capa do álbum)
 
 BOOT_WINDOW_S = 15 * 60       # "ao ligar o PC": só se o PC ligou há pouco (não a cada abertura do app)
 FULLSCREEN_DEBOUNCE_S = 2     # alt-tab rápido não troca a luz
@@ -80,7 +81,7 @@ def default_rules(tr, cfg) -> List[Rule]:
     ]
 
 
-RULES_VERSION = 3
+RULES_VERSION = 4
 
 
 def upgrade_rules(cfg) -> bool:
@@ -104,6 +105,10 @@ def upgrade_rules(cfg) -> bool:
             if sc.name in movie and sc.mode == "colour" and list(sc.color) == [90, 60, 255] and sc.brightness == 25:
                 sc.name, sc.mode = tr("scene.ambilight"), "screen"
                 changed = True
+    if cfg.settings.rules_version < 4 and not any(sc.mode == "cover" for sc in cfg.scenes):
+        from .i18n import tr
+        cfg.scenes.append(Scene(tr("scene.music"), "cover", 100, 50))  # cena Música (capa do álbum)
+        changed = True
     if cfg.settings.rules_version != RULES_VERSION:
         cfg.settings.rules_version = RULES_VERSION
         changed = True
@@ -462,6 +467,8 @@ class Automation(QObject):
         self._cover_busy = False
         self.cover = CoverTracker()
         self._screen_rules: Dict[str, tuple] = {}  # camada que segue a tela -> (prioridade, [lâmpadas])
+        self._cover_layers: Dict[str, tuple] = {}  # camada que segue a capa -> (prioridade, [lâmpadas], brilho)
+        self._cover_rgb = None        # cor da capa que está tocando (None = nada tocando)
         self._mood = None             # último visual da tela aplicado
         self._mood_pending = (None, 0)  # troca de tipo (cor/branco/escuro) esperando confirmar
         self._focus_window = None     # dentro do horário de trabalho na última conferida
@@ -513,6 +520,12 @@ class Automation(QObject):
             self._hotkeys.stop()
         if self.watcher:
             self.watcher.stop()
+        for t in (self._clock, self._circ_timer, self._cover_timer, self._screen_timer, self._ambi_timer):
+            t.stop()
+        self.pomodoro.stop()
+        for f in list(self._fades):
+            f.timer.stop()
+        self._fades.clear()
 
     def reload(self) -> None:
         """Configuração mudou: reavalia regras ativas, atalhos e recursos."""
@@ -539,6 +552,12 @@ class Automation(QObject):
                 self._stop_screen(key, restore=False)
             else:
                 self._screen_rules[key] = (prio, rest)
+        for key, (prio, lids, bright) in list(self._cover_layers.items()):
+            rest = [lid for lid in lids if lid not in ids]
+            if key == COVER_SCENE and not rest:
+                self._stop_cover(key, restore=False)
+            else:
+                self._cover_layers[key] = (prio, rest, bright)
         today = self._now().date()
         for f in self._fades:
             for lid in ids:
@@ -576,7 +595,7 @@ class Automation(QObject):
             for lid in ids:
                 f.begin.pop(lid, None)
         begin = {}
-        if target is not None and target.mode == "screen":  # cena reativa: não tem como "subir aos poucos"
+        if target is not None and target.mode in REACTIVE_MODES:  # reativa: não tem como "subir aos poucos"
             with svc.automated():
                 svc.apply_scene(ids, target)
             return
@@ -715,8 +734,11 @@ class Automation(QObject):
         key = f"rule:{r.id}"
         self._active[r.id] = key
         log.info("Automação '%s' começou", r.name)
+        sc = self.cfg.scene(r.scene_id) if r.action == "scene" else None
         if self._follows_screen(r):
             self._start_screen(key, prio, self.ids(r.targets))
+        elif sc is not None and sc.mode == "cover":
+            self._start_cover(key, prio, self.ids(r.targets), sc.brightness)
         elif r.action in R.LOOK_ACTIONS:
             self.stack.push(key, prio, self.ids(r.targets), self._look(r))
         else:
@@ -728,6 +750,8 @@ class Automation(QObject):
         self._screen_rules.pop(key, None)
         if not self._screen_rules:
             self._ambi_timer.stop()
+        if self._cover_layers.pop(key, None) is not None:
+            self._update_cover_timer()
         if r.restore == "scene" and self.cfg.scene(r.restore_scene):
             ids = [lid for lid in self.ids(r.targets) if self.stack.controls(lid)]
             self.stack.pop(key, restore=False)
@@ -855,7 +879,7 @@ class Automation(QObject):
     def focus_scene(self) -> Scene:
         f = self.cfg.settings.focus
         sc = self.cfg.scene(f.scene_id)
-        if sc is not None and sc.mode == "screen":
+        if sc is not None and sc.mode in REACTIVE_MODES:
             sc = None  # foco é luz parada
         if sc is None:
             from .i18n import STRINGS
@@ -938,15 +962,15 @@ class Automation(QObject):
     # ---------------------------------------------------------------- música ---
     def _setup_music(self) -> None:
         m = self.cfg.settings.music
-        cover = m.enabled and m.source == "cover"
         screen = m.enabled and m.source == "screen"
-        (self._cover_timer.start if cover else self._cover_timer.stop)()
         (self._screen_timer.start if screen else self._screen_timer.stop)()
+        self._update_cover_timer()
         if not m.enabled and self.stack.active("music"):
             self.stack.pop("music")
             self._music_color = None
-            self.last_track = ""
-            self.cover = CoverTracker()
+            if not self._cover_layers:
+                self.last_track = ""
+                self.cover = CoverTracker()
 
     def set_music_color(self, rgb) -> None:
         """Nova cor da música/tela (None = nada tocando: a luz volta ao normal)."""
@@ -979,18 +1003,23 @@ class Automation(QObject):
     def _on_cover(self, res) -> None:
         self._cover_busy = False
         m = self.cfg.settings.music
-        if not m.enabled or m.source != "cover":
+        feature = m.enabled and m.source == "cover"
+        if not feature and not self._cover_layers:
             return
         status, key, digest, color = res
         what = self.cover.update(status, key, digest)
         if what == "stop":
             self.last_track = ""
-            self.set_music_color(None)
+            if feature:
+                self.set_music_color(None)
+            self._cover_changed(None)
             self.changed.emit()
         elif what == "color":
             self.last_track = key
             if color is not None:
-                self.set_music_color(color)
+                if feature:
+                    self.set_music_color(color)
+                self._cover_changed(color)
             self.changed.emit()
 
     def _poll_screen(self) -> None:
@@ -1057,12 +1086,47 @@ class Automation(QObject):
         if not self._screen_rules:
             self._ambi_timer.stop()
 
-    def _on_reactive_scene(self, ids) -> None:
-        """Escolheram a cena Ambilight: a luz segue a tela até outra cena ou uma mudança à mão."""
+    def _on_reactive_scene(self, ids, scene=None) -> None:
+        """Escolheram uma cena reativa: a luz segue a tela (Ambilight) ou a capa do álbum (Música)
+        até outra cena ou uma mudança à mão."""
+        if scene is not None and scene.mode == "cover":
+            old = self._cover_layers.get(COVER_SCENE, (PRIO_SCENE, [], 100))[1]
+            merged = list(dict.fromkeys([*old, *ids]))
+            if merged:
+                self._start_cover(COVER_SCENE, PRIO_SCENE, merged, scene.brightness)
+            return
         old = self._screen_rules.get(SCREEN_SCENE, (PRIO_SCENE, []))[1]
         merged = list(dict.fromkeys([*old, *ids]))
         if merged:
             self._start_screen(SCREEN_SCENE, PRIO_SCENE, merged)
+
+    # ----------------------------------------------- capa do álbum (cena Música) ---
+    def _start_cover(self, key: str, prio: int, ids, brightness: int) -> None:
+        self._cover_layers[key] = (prio, list(ids), brightness)
+        if self._cover_rgb is not None:  # já está tocando: aplica a cor na hora
+            self.stack.push(key, prio, ids, colour_look(self._cover_rgb, brightness))
+        else:
+            self.cover.digest = None     # relê a capa na próxima consulta (em até 1 s)
+        self._update_cover_timer()
+
+    def _stop_cover(self, key: str, restore: bool = True) -> None:
+        self._cover_layers.pop(key, None)
+        self.stack.pop(key, restore=restore)
+        self._update_cover_timer()
+
+    def _update_cover_timer(self) -> None:
+        m = self.cfg.settings.music
+        wanted = (m.enabled and m.source == "cover") or bool(self._cover_layers)
+        (self._cover_timer.start if wanted else self._cover_timer.stop)()
+
+    def _cover_changed(self, rgb) -> None:
+        """Cor da capa mudou (None = parou de tocar: as camadas somem e a luz volta ao que era)."""
+        self._cover_rgb = tuple(rgb) if rgb is not None else None
+        for key, (prio, ids, bright) in self._cover_layers.items():
+            if rgb is None:
+                self.stack.pop(key)
+            else:
+                self.stack.push(key, prio, ids, colour_look(rgb, bright))
 
     # ------------------------------------------------------------ diagnóstico ---
     def diagnostics(self) -> Dict[str, str]:

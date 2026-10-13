@@ -9,7 +9,7 @@ from typing import Dict, Iterable, List, Optional
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 
 from .lamp import FakeLiveBulb, LampState, LiveBulb
-from .storage import Scene, Store
+from .storage import REACTIVE_MODES, Scene, Store
 
 log = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class LampService(QObject):
     stateChanged = Signal(str, object)      # lamp_id, LampState
     versionDetected = Signal(str, str)      # lamp_id, versão
     timersChanged = Signal()
-    reactiveScene = Signal(list)            # cena "Ambilight" (segue a tela): quem pinta são as automações
+    reactiveScene = Signal(list, object)    # cena reativa (tela/capa do álbum): quem pinta são as automações
     userCommand = Signal(list, str)         # ids e tipo de comando mexidos à mão (painel, bandeja, atalhos)
 
     # usados pelas threads das lâmpadas; o Qt entrega na thread da interface
@@ -156,13 +156,13 @@ class LampService(QObject):
         self._apply(ids, "color", rgb, lambda s: replace(s, is_on=True, mode="colour", color=rgb))
 
     def apply_scene(self, ids, scene: Scene) -> None:
-        if scene.mode == "screen":  # cena reativa: não vai para a lâmpada, as automações acompanham a tela
+        if scene.mode in REACTIVE_MODES:  # cena reativa: não vai para a lâmpada, as automações acompanham
             ids = list(ids)
             if self._auto and not self._bypass and self.locked:
                 ids = [i for i in ids if i not in self.locked]
             if not self._auto:
                 self.userCommand.emit(ids, "scene")
-            self.reactiveScene.emit(ids)
+            self.reactiveScene.emit(ids, scene)
             return
 
         def optimistic(s):

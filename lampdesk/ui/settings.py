@@ -744,11 +744,14 @@ class SceneDialog(_Dialog):
         mode_row = QHBoxLayout()
         self.white = QRadioButton(tr("scene.mode_white"))
         self.colour = QRadioButton(tr("scene.mode_colour"))
-        self.screen = QRadioButton(tr("scene.mode_screen"))
-        {"colour": self.colour, "screen": self.screen}.get(self.scene.mode, self.white).setChecked(True)
+        self.screen = QRadioButton(tr("scene.mode_screen_short"))
+        self.cover = QRadioButton(tr("scene.mode_cover_short"))
+        {"colour": self.colour, "screen": self.screen, "cover": self.cover}.get(
+            self.scene.mode, self.white).setChecked(True)
         mode_row.addWidget(self.white)
         mode_row.addWidget(self.colour)
         mode_row.addWidget(self.screen)
+        mode_row.addWidget(self.cover)
         mode_row.addStretch(1)
         self.bright = QSlider(Qt.Orientation.Horizontal)
         self.bright.setRange(1, 100)
@@ -764,21 +767,25 @@ class SceneDialog(_Dialog):
         form.addRow(tr("color"), self.color_btn)
         self.body.addLayout(form)
         self.screen_note = muted(tr("scene.screen_note"))
+        self.cover_note = muted(tr("scene.cover_note"))
         self.body.addWidget(self.screen_note)
+        self.body.addWidget(self.cover_note)
         self.form = form
-        for rb in (self.white, self.colour, self.screen):
+        for rb in (self.white, self.colour, self.screen, self.cover):
             rb.toggled.connect(self._sync)
         self._sync()
         self.add_buttons()
 
     def _sync(self):
-        white, screen = self.white.isChecked(), self.screen.isChecked()
+        white, screen, cover = self.white.isChecked(), self.screen.isChecked(), self.cover.isChecked()
         self.temp.setEnabled(white)
         self.color_btn.setEnabled(self.colour.isChecked())
         self.color_btn.setIcon(swatch(self.color, 16))
-        for w in (self.bright, self.temp, self.color_btn):  # a tela decide cor e brilho
-            self.form.setRowVisible(w, not screen)
+        self.form.setRowVisible(self.bright, not screen)  # a tela decide cor e brilho; a capa, só a cor
+        for w in (self.temp, self.color_btn):
+            self.form.setRowVisible(w, not (screen or cover))
         self.screen_note.setVisible(screen)
+        self.cover_note.setVisible(cover)
 
     def pick(self):
         c = QColorDialog.getColor(self.color, self, tr("pick_color"))
@@ -789,7 +796,8 @@ class SceneDialog(_Dialog):
     def value(self) -> Scene:
         s = self.scene
         s.name = self.name.text().strip() or s.name
-        s.mode = "screen" if self.screen.isChecked() else ("white" if self.white.isChecked() else "colour")
+        s.mode = ("screen" if self.screen.isChecked() else "cover" if self.cover.isChecked()
+                  else "white" if self.white.isChecked() else "colour")
         s.brightness, s.temperature = self.bright.value(), self.temp.value()
         s.color = [self.color.red(), self.color.green(), self.color.blue()]
         return s
@@ -816,8 +824,11 @@ class ScenesTab(QWidget):
         from ..lamp import white_rgb
         self.list.clear()
         for s in self.win.store.config.scenes:
-            if s.mode == "screen":
-                it = QListWidgetItem(swatch(QColor(120, 150, 255), 14), f"{s.name}\n{tr('scene.mode_screen')}")
+            if s.mode in ("screen", "cover"):
+                detail = tr("scene.mode_screen") if s.mode == "screen" else \
+                    f"{tr('scene.mode_cover')} · {s.brightness}%"
+                dot = QColor(120, 150, 255) if s.mode == "screen" else QColor(235, 110, 200)
+                it = QListWidgetItem(swatch(dot, 14), f"{s.name}\n{detail}")
                 it.setData(Qt.ItemDataRole.UserRole, s.id)
                 self.list.addItem(it)
                 continue

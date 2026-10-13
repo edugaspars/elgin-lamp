@@ -512,7 +512,7 @@ class FeaturesPage(QScrollArea):
         add(tr("routine.targets"), self.focus_targets)
         self.focus_scene = QComboBox()
         for sc in cfg.scenes:
-            if sc.mode != "screen":  # foco é luz parada
+            if sc.mode not in ("screen", "cover"):  # foco é luz parada
                 self.focus_scene.addItem(sc.name, sc.id)
         add(tr("feature.focus_scene"), self.focus_scene)
         self.focus_schedule = QCheckBox(tr("feature.focus_schedule"))
